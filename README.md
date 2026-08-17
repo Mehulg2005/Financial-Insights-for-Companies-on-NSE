@@ -48,6 +48,7 @@ The application uses Selenium to retrieve Insights data for NSE-listed companies
                               ┌─────────────────┐
                               │    Screener     │
                               └─────────────────┘
+'''
 
 Search workflow
 When a user searches for an NSE code:
