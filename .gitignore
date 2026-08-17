@@ -21,3 +21,6 @@ env/
 
 # Logs
 *.log
+
+# Local AI/developer context
+PROJECT_CONTEXT.md
