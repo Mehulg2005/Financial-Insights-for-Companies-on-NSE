@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Screener Insights</title>
+
+
+    <style>
+
+        body {
+
+            font-family: Arial, sans-serif;
+
+            margin: 0;
+
+            padding: 40px;
+
+            background: #f5f5f5;
+
+        }
+
+
+        h1 {
+
+            font-size: 42px;
+
+            margin-bottom: 10px;
+
+        }
+
+
+        .description {
+
+            font-size: 22px;
+
+            margin-bottom: 30px;
+
+        }
+
+
+        .search-container {
+
+            display: flex;
+
+            gap: 15px;
+
+            margin-bottom: 30px;
+
+        }
+
+
+        input {
+
+            flex: 1;
+
+            padding: 18px;
+
+            font-size: 20px;
+
+            border: 1px solid #ccc;
+
+            border-radius: 8px;
+
+        }
+
+
+        button {
+
+            padding: 18px 30px;
+
+            font-size: 20px;
+
+            border: none;
+
+            border-radius: 8px;
+
+            background: #222;
+
+            color: white;
+
+            cursor: pointer;
+
+        }
+
+
+        button:hover {
+
+            background: #444;
+
+        }
+
+
+        button:disabled {
+
+            background: #999;
+
+            cursor: not-allowed;
+
+        }
+
+
+        .company-header {
+
+            display: flex;
+
+            justify-content: space-between;
+
+            align-items: center;
+
+            margin-top: 25px;
+
+        }
+
+
+        .company-header h2 {
+
+            font-size: 32px;
+
+            margin-bottom: 10px;
+
+        }
+
+
+        .last-updated {
+
+            color: #555;
+
+        }
+
+
+        .status {
+
+            font-size: 20px;
+
+            font-weight: bold;
+
+            margin: 20px 0;
+
+        }
+
+
+        .table-container {
+
+            background: white;
+
+            padding: 15px;
+
+            border-radius: 10px;
+
+            overflow-x: auto;
+
+            margin-top: 25px;
+
+        }
+
+
+        table {
+
+            width: 100%;
+
+            border-collapse: collapse;
+
+            min-width: 800px;
+
+        }
+
+
+        th {
+
+            background: #e8e8e8;
+
+            font-weight: bold;
+
+        }
+
+
+        th, td {
+
+            padding: 14px;
+
+            border-bottom: 1px solid #ddd;
+
+            text-align: center;
+
+            white-space: nowrap;
+
+        }
+
+
+        th:first-child,
+        td:first-child {
+
+            text-align: left;
+
+            position: sticky;
+
+            left: 0;
+
+            background: white;
+
+        }
+
+
+        th:first-child {
+
+            background: #e8e8e8;
+
+        }
+
+
+        .hidden {
+
+            display: none;
+
+        }
+
+
+        .error {
+
+            color: #b00020;
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+    <h1>Screener Insights</h1>
+
+
+    <div class="description">
+
+        Search for a company using its NSE code.
+
+    </div>
+
+
+    <!-- Search -->
+
+    <div class="search-container">
+
+        <input
+            id="nseCode"
+            type="text"
+            placeholder="Enter NSE Code"
+        >
+
+        <button
+            onclick="searchCompany()"
+            id="searchButton"
+        >
+            Search
+        </button>
+
+    </div>
+
+
+    <!-- Status -->
+
+    <div
+        id="status"
+        class="status"
+    ></div>
+
+
+    <!-- Company information -->
+
+    <div
+        id="companyInfo"
+        class="hidden"
+    >
+
+        <div class="company-header">
+
+            <div>
+
+                <h2 id="companyName"></h2>
+
+                <p>
+                    NSE Code:
+                    <strong id="companyCode"></strong>
+                </p>
+
+                <p class="last-updated">
+
+                    Last Updated:
+                    <strong id="lastUpdated">
+                        Not available
+                    </strong>
+
+                </p>
+
+            </div>
+
+
+            <button
+                id="updateButton"
+                onclick="updateCompany()"
+            >
+                Update Data
+            </button>
+
+        </div>
+
+
+        <div
+            id="tableContainer"
+            class="table-container hidden"
+        >
+
+            <table>
+
+                <thead id="tableHead"></thead>
+
+                <tbody id="tableBody"></tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+
+    <script>
+
+
+        // --------------------------------------------------
+        // Search company
+        // --------------------------------------------------
+
+        async function searchCompany() {
+
+
+            const input =
+                document.getElementById(
+                    "nseCode"
+                );
+
+
+            const nseCode =
+                input.value
+                    .trim()
+                    .toUpperCase();
+
+
+            if (!nseCode) {
+
+                alert(
+                    "Please enter an NSE code."
+                );
+
+                return;
+            }
+
+
+            const status =
+                document.getElementById(
+                    "status"
+                );
+
+
+            const companyInfo =
+                document.getElementById(
+                    "companyInfo"
+                );
+
+
+            const tableContainer =
+                document.getElementById(
+                    "tableContainer"
+                );
+
+
+            const searchButton =
+                document.getElementById(
+                    "searchButton"
+                );
+
+
+            searchButton.disabled = true;
+
+
+            status.textContent =
+                "Searching PostgreSQL...";
+
+
+            status.className =
+                "status";
+
+
+            companyInfo.classList.add(
+                "hidden"
+            );
+
+
+            tableContainer.classList.add(
+                "hidden"
+            );
+
+
+            try {
+
+
+                const response =
+                    await fetch(
+                        `/search/${nseCode}`
+                    );
+
+
+                const data =
+                    await response.json();
+
+
+                if (!response.ok) {
+
+                    throw new Error(
+                        data.detail ||
+                        "Search failed."
+                    );
+
+                }
+
+
+                companyInfo.classList.remove(
+                    "hidden"
+                );
+
+
+                document.getElementById(
+                    "companyCode"
+                ).textContent =
+                    data.nse_code;
+
+
+                // --------------------------------------------------
+                // Company not found
+                // --------------------------------------------------
+
+                if (!data.found) {
+
+
+                    status.textContent =
+                        data.message;
+
+
+                    status.className =
+                        "status";
+
+
+                    document.getElementById(
+                        "companyName"
+                    ).textContent =
+                        "Company not found";
+
+
+                    document.getElementById(
+                        "lastUpdated"
+                    ).textContent =
+                        "Not available";
+
+
+                    document.getElementById(
+                        "updateButton"
+                    ).style.display =
+                        "block";
+
+
+                    return;
+
+                }
+
+
+                // --------------------------------------------------
+                // Company found
+                // --------------------------------------------------
+
+                status.textContent =
+                    "Data loaded from PostgreSQL.";
+
+
+                document.getElementById(
+                    "companyName"
+                ).textContent =
+                    data.company_name;
+
+
+                document.getElementById(
+                    "lastUpdated"
+                ).textContent =
+                    formatDate(
+                        data.last_updated
+                    );
+
+
+                document.getElementById(
+                    "updateButton"
+                ).style.display =
+                    "block";
+
+
+                displayTable(data);
+
+
+            }
+
+
+            catch (error) {
+
+
+                console.error(error);
+
+
+                status.textContent =
+                    error.message;
+
+
+                status.className =
+                    "status error";
+
+            }
+
+
+            finally {
+
+                searchButton.disabled =
+                    false;
+
+            }
+
+        }
+
+
+        // --------------------------------------------------
+        // Update company
+        // --------------------------------------------------
+
+        async function updateCompany() {
+
+
+            const nseCode =
+                document.getElementById(
+                    "nseCode"
+                ).value
+                .trim()
+                .toUpperCase();
+
+
+            if (!nseCode) {
+
+                return;
+
+            }
+
+
+            const updateButton =
+                document.getElementById(
+                    "updateButton"
+                );
+
+
+            const status =
+                document.getElementById(
+                    "status"
+                );
+
+
+            updateButton.disabled =
+                true;
+
+
+            updateButton.textContent =
+                "Updating...";
+
+
+            status.textContent =
+                "Opening Screener and updating data...";
+
+
+            try {
+
+
+                const response =
+                    await fetch(
+                        `/update/${nseCode}`,
+                        {
+                            method: "POST"
+                        }
+                    );
+
+
+                const data =
+                    await response.json();
+
+
+                if (!response.ok) {
+
+                    throw new Error(
+                        data.detail ||
+                        "Update failed."
+                    );
+
+                }
+
+
+                status.textContent =
+                    "Data updated successfully.";
+
+
+                document.getElementById(
+                    "companyName"
+                ).textContent =
+                    data.company_name;
+
+
+                document.getElementById(
+                    "companyCode"
+                ).textContent =
+                    data.nse_code;
+
+
+                document.getElementById(
+                    "lastUpdated"
+                ).textContent =
+                    formatDate(
+                        data.last_updated
+                    );
+
+
+                displayTable(data);
+
+
+            }
+
+
+            catch (error) {
+
+
+                console.error(error);
+
+
+                status.textContent =
+                    error.message;
+
+
+                status.className =
+                    "status error";
+
+            }
+
+
+            finally {
+
+
+                updateButton.disabled =
+                    false;
+
+
+                updateButton.textContent =
+                    "Update Data";
+
+            }
+
+        }
+
+
+        // --------------------------------------------------
+        // Display table
+        // --------------------------------------------------
+
+        function displayTable(data) {
+
+
+            const tableHead =
+                document.getElementById(
+                    "tableHead"
+                );
+
+
+            const tableBody =
+                document.getElementById(
+                    "tableBody"
+                );
+
+
+            tableHead.innerHTML = "";
+
+            tableBody.innerHTML = "";
+
+
+            // --------------------------------------------------
+            // Header
+            // --------------------------------------------------
+
+            const headerRow =
+                document.createElement(
+                    "tr"
+                );
+
+
+            const metricHeader =
+                document.createElement(
+                    "th"
+                );
+
+
+            metricHeader.textContent =
+                "Metric";
+
+
+            headerRow.appendChild(
+                metricHeader
+            );
+
+
+            data.periods.forEach(
+                period => {
+
+                    const th =
+                        document.createElement(
+                            "th"
+                        );
+
+                    th.textContent =
+                        period;
+
+                    headerRow.appendChild(
+                        th
+                    );
+
+                }
+            );
+
+
+            tableHead.appendChild(
+                headerRow
+            );
+
+
+            // --------------------------------------------------
+            // Rows
+            // --------------------------------------------------
+
+            data.metrics.forEach(
+                metric => {
+
+
+                    const row =
+                        document.createElement(
+                            "tr"
+                        );
+
+
+                    const metricCell =
+                        document.createElement(
+                            "td"
+                        );
+
+
+                    metricCell.textContent =
+                        metric.metric;
+
+
+                    row.appendChild(
+                        metricCell
+                    );
+
+
+                    metric.values.forEach(
+                        value => {
+
+
+                            const cell =
+                                document.createElement(
+                                    "td"
+                                );
+
+
+                            if (
+                                value === null ||
+                                value === ""
+                            ) {
+
+                                cell.textContent =
+                                    "-";
+
+                            }
+
+                            else {
+
+                                cell.textContent =
+                                    value;
+
+                            }
+
+
+                            row.appendChild(
+                                cell
+                            );
+
+                        }
+                    );
+
+
+                    tableBody.appendChild(
+                        row
+                    );
+
+                }
+            );
+
+
+            document.getElementById(
+                "tableContainer"
+            ).classList.remove(
+                "hidden"
+            );
+
+        }
+
+
+        // --------------------------------------------------
+        // Format timestamp
+        // --------------------------------------------------
+
+        function formatDate(
+            timestamp
+        ) {
+
+
+            if (!timestamp) {
+
+                return "Not available";
+
+            }
+
+
+            const date =
+                new Date(timestamp);
+
+
+            return date.toLocaleString();
+
+        }
+
+
+        // --------------------------------------------------
+        // Press Enter to search
+        // --------------------------------------------------
+
+        document
+            .getElementById("nseCode")
+            .addEventListener(
+                "keypress",
+                function(event) {
+
+                    if (
+                        event.key === "Enter"
+                    ) {
+
+                        searchCompany();
+
+                    }
+
+                }
+            );
+
+
+    </script>
+
+
+</body>
+
+</html>
