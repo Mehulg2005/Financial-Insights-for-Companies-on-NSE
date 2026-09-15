@@ -251,11 +251,7 @@
             </div>
 
 
-            <!-- ============================
-                 FEATURES TAB
-            ============================ -->
-
-            <div id="featuresTab" class="tab-panel hidden">
+                        <div id="featuresTab" class="tab-panel hidden">
 
                 <!-- PROFITABILITY -->
 
@@ -263,43 +259,28 @@
 
                     <h2>Profitability</h2>
 
-                    <div class="chart-container">
-                        <canvas id="profitabilityChart"></canvas>
+                    <div class="chart-block">
+                        <h3>Effective Tax Rate &amp; Operating Margin</h3>
+                        <div class="chart-container">
+                            <canvas id="profitabilityChart1"></canvas>
+                        </div>
+                        <div id="profitabilityToggles1" class="chart-toggles"></div>
                     </div>
 
-                    <div class="chart-toggles" id="profitabilityToggles">
+                    <div class="chart-block">
+                        <h3>Sales &amp; Net Profit</h3>
+                        <div class="chart-container">
+                            <canvas id="profitabilityChart2"></canvas>
+                        </div>
+                        <div id="profitabilityToggles2" class="chart-toggles"></div>
                     </div>
 
-                </section>
-
-
-                <!-- GROWTH -->
-
-                <section class="data-section">
-
-                    <h2>Growth</h2>
-
-                    <div class="chart-container">
-                        <canvas id="growthChart"></canvas>
-                    </div>
-
-                    <div class="chart-toggles" id="growthToggles">
-                    </div>
-
-                </section>
-
-
-                <!-- LEVERAGE -->
-
-                <section class="data-section">
-
-                    <h2>Leverage</h2>
-
-                    <div class="chart-container">
-                        <canvas id="leverageChart"></canvas>
-                    </div>
-
-                    <div class="chart-toggles" id="leverageToggles">
+                    <div class="chart-block">
+                        <h3>Profit before Tax &amp; Profit after Tax</h3>
+                        <div class="chart-container">
+                            <canvas id="profitabilityChart3"></canvas>
+                        </div>
+                        <div id="profitabilityToggles3" class="chart-toggles"></div>
                     </div>
 
                 </section>
@@ -311,17 +292,88 @@
 
                     <h2>Cash Flow Quality</h2>
 
-                    <div class="chart-container">
-                        <canvas id="cashflowChart"></canvas>
+                    <div class="chart-block">
+                        <h3>Cash Conversion &amp; CFO Contribution</h3>
+                        <div class="chart-container">
+                            <canvas id="cashflowChart1"></canvas>
+                        </div>
+                        <div id="cashflowToggles1" class="chart-toggles"></div>
                     </div>
 
-                    <div class="chart-toggles" id="cashflowToggles">
+                    <div class="chart-block">
+                        <h3>Cash from Operating Activity (CFO)</h3>
+                        <div class="chart-container">
+                            <canvas id="cashflowChart2"></canvas>
+                        </div>
+                        <div id="cashflowToggles2" class="chart-toggles"></div>
                     </div>
 
                 </section>
 
-            </div>
 
+                <!-- GROWTH TRENDS -->
+
+                <section class="data-section">
+
+                    <h2>Growth Trends</h2>
+
+                    <div class="chart-block">
+                        <h3>Investment Migration &amp; Borrowings to Net Worth Ratio</h3>
+                        <div class="chart-container">
+                            <canvas id="growthTrendsChart1"></canvas>
+                        </div>
+                        <div id="growthTrendsToggles1" class="chart-toggles"></div>
+                    </div>
+
+                    <div class="chart-block">
+                        <h3>Reserves &amp; Equity Capital</h3>
+                        <div class="chart-container">
+                            <canvas id="growthTrendsChart2"></canvas>
+                        </div>
+                        <div id="growthTrendsToggles2" class="chart-toggles"></div>
+                    </div>
+
+                </section>
+
+
+                <!-- OTHER METRICS -->
+
+                <section class="data-section">
+
+                    <h2>Other Metrics</h2>
+
+                    <div class="chart-grid">
+
+                        <div class="chart-card">
+                            <h3>Total Liabilities vs Total Assets</h3>
+                            <div class="chart-container">
+                                <canvas id="totalLiabilitiesVsAssetsChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="chart-card">
+                            <h3>Borrowings vs Total Assets</h3>
+                            <div class="chart-container">
+                                <canvas id="borrowingsVsAssetsChart"></canvas>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </section>
+                
+                <!-- FUNDAMENTAL ANALYSIS -->
+                <section class="data-section">
+
+                    <h2>Fundamental Analysis</h2>
+
+                    <div id="fundamentalOverallVerdict" class="overall-verdict"></div>
+
+                    <div id="fundamentalAnalysisCards" class="analysis-grid"></div>
+
+                </section>
+
+            </div>
         </section>
 
     </main>
@@ -330,7 +382,6 @@
     <footer>
         Financial Insights API · v2.0.0
     </footer>
-
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script src="/static/app.js"></script>
