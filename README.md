@@ -149,14 +149,15 @@ Interactive docs available at `/docs` (Swagger UI) once the app is running.
 ```
 
 4. Configure environment variables — copy `.env.example` to `.env` and fill in your PostgreSQL credentials:
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=your_database_name
-DB_USER=your_database_user
-DB_PASSWORD=your_database_password
-
+```
+   DB_HOST=localhost
+   DB_PORT=5432
+   DB_NAME=your_database_name
+   DB_USER=your_database_user
+   DB_PASSWORD=your_database_password
+```
    `.env` is gitignored and should never be committed.
-
+   
 5. Create the PostgreSQL database (the application initializes required tables on startup):
 ```sql
    CREATE DATABASE screener_db;
