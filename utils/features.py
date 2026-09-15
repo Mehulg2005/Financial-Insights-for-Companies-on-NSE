@@ -45,9 +45,11 @@ def _record(metric, period, value, decimals=4):
 # ==================================================
 # Profitability
 #
-# Values are decimal fractions (e.g. 0.184 for 18.4%),
-# matching how the frontend's formatRatioAsPercent()
-# expects Feature values to arrive.
+# Effective Tax Rate / Operating Margin are decimal
+# fractions (e.g. 0.184 for 18.4%), matching how the
+# frontend's formatRatioAsPercent() expects them.
+# Sales / Net Profit / Profit before Tax / Profit
+# After Tax are raw rupee-crore values.
 # ==================================================
 
 def build_profitability(pnl_pivoted):
@@ -62,6 +64,10 @@ def build_profitability(pnl_pivoted):
         net_profit = _get(row, ["Net Profit", "Net profit"])
         operating_profit = _get(row, ["Operating Profit"])
         tax_percent = _get(row, ["Tax %"])
+        profit_before_tax = _get(
+            row,
+            ["Profit before tax", "Profit before Tax"]
+        )
 
         # --------------------------------------------------
         # Operating Margin = Operating Profit / Sales
@@ -79,15 +85,32 @@ def build_profitability(pnl_pivoted):
                 records.append(record)
 
         # --------------------------------------------------
-        # Net Profit Margin = Net Profit / Sales
+        # Sales (raw)
         # --------------------------------------------------
 
-        if sales and net_profit is not None:
+        if sales is not None:
 
             record = _record(
-                "Net Profit Margin",
+                "Sales",
                 period,
-                net_profit / sales
+                sales,
+                decimals=2
+            )
+
+            if record:
+                records.append(record)
+
+        # --------------------------------------------------
+        # Net Profit (raw)
+        # --------------------------------------------------
+
+        if net_profit is not None:
+
+            record = _record(
+                "Net Profit",
+                period,
+                net_profit,
+                decimals=2
             )
 
             if record:
@@ -109,92 +132,16 @@ def build_profitability(pnl_pivoted):
             if record:
                 records.append(record)
 
-    return records
-
-
-# ==================================================
-# Growth
-#
-# Period-over-period % change, expressed as a decimal
-# fraction (e.g. 0.12 for +12%).
-# ==================================================
-
-def build_growth(pnl_pivoted):
-
-    records = []
-
-    metrics_to_track = [
-        ("Sales Growth", ["Sales", "Revenue"]),
-        ("Net Profit Growth", ["Net Profit", "Net profit"]),
-        ("EPS Growth", ["EPS in Rs", "EPS"]),
-    ]
-
-    for i in range(1, len(pnl_pivoted)):
-
-        previous_row = pnl_pivoted[i - 1]
-        current_row = pnl_pivoted[i]
-
-        period = current_row["period"]
-
-        for label, names in metrics_to_track:
-
-            previous_value = _get(previous_row, names)
-            current_value = _get(current_row, names)
-
-            if (
-                previous_value in (None, 0)
-                or current_value is None
-            ):
-                continue
-
-            growth = (
-                (current_value - previous_value)
-                / abs(previous_value)
-            )
-
-            record = _record(label, period, growth)
-
-            if record:
-                records.append(record)
-
-    return records
-
-
-# ==================================================
-# Leverage
-#
-# Plain ratios (not percentages), e.g. Debt to Equity
-# of 0.6 means borrowings are 0.6x equity.
-# ==================================================
-
-def build_leverage(bs_pivoted):
-
-    records = []
-
-    for row in bs_pivoted:
-
-        period = row["period"]
-
-        equity_capital = _get(row, ["Equity Capital"])
-        reserves = _get(row, ["Reserves"])
-        borrowings = _get(row, ["Borrowings"])
-        total_liabilities = _get(row, ["Total Liabilities"])
-
-        equity = None
-
-        if equity_capital is not None or reserves is not None:
-            equity = (equity_capital or 0) + (reserves or 0)
-
         # --------------------------------------------------
-        # Debt to Equity = Borrowings / Equity
+        # Profit before Tax (raw)
         # --------------------------------------------------
 
-        if borrowings is not None and equity:
+        if profit_before_tax is not None:
 
             record = _record(
-                "Debt to Equity",
+                "Profit before Tax",
                 period,
-                borrowings / equity,
+                profit_before_tax,
                 decimals=2
             )
 
@@ -202,15 +149,20 @@ def build_leverage(bs_pivoted):
                 records.append(record)
 
         # --------------------------------------------------
-        # Total Liabilities to Equity
+        # Profit After Tax
+        #   = Profit before Tax - (Profit before Tax * Tax% / 100)
         # --------------------------------------------------
 
-        if total_liabilities is not None and equity:
+        if profit_before_tax is not None and tax_percent is not None:
+
+            pat = profit_before_tax - (
+                profit_before_tax * tax_percent / 100
+            )
 
             record = _record(
-                "Total Liabilities to Equity",
+                "Profit After Tax",
                 period,
-                total_liabilities / equity,
+                pat,
                 decimals=2
             )
 
@@ -223,8 +175,9 @@ def build_leverage(bs_pivoted):
 # ==================================================
 # Cash Flow Quality
 #
-# Ratios relating cash generation to reported profit,
-# expressed as decimal fractions.
+# CFO is a raw rupee-crore value. CFO Contribution and
+# Cash Conversion are decimal fractions (e.g. 0.18 for
+# 18%), matching formatRatioAsPercent() on the frontend.
 # ==================================================
 
 def build_cash_flow_quality(cf_pivoted, pnl_pivoted):
@@ -245,6 +198,11 @@ def build_cash_flow_quality(cf_pivoted, pnl_pivoted):
             ["Cash from Operating Activity"]
         )
 
+        net_cash_flow = _get(
+            row,
+            ["Net Cash Flow"]
+        )
+
         pnl_row = pnl_by_period.get(period, {})
 
         net_profit = _get(
@@ -252,10 +210,41 @@ def build_cash_flow_quality(cf_pivoted, pnl_pivoted):
             ["Net Profit", "Net profit"]
         )
 
-        sales = _get(
-            pnl_row,
-            ["Sales", "Revenue"]
-        )
+        # --------------------------------------------------
+        # Cash from Operating Activity (CFO) - raw
+        # --------------------------------------------------
+
+        if cash_from_operating is not None:
+
+            record = _record(
+                "Cash from Operating Activity (CFO)",
+                period,
+                cash_from_operating,
+                decimals=2
+            )
+
+            if record:
+                records.append(record)
+
+        # --------------------------------------------------
+        # CFO Contribution = CFO / Net Cash Flow
+        # (how much of the company's overall net cash
+        # movement came from operations)
+        # --------------------------------------------------
+
+        if (
+            cash_from_operating is not None
+            and net_cash_flow not in (None, 0)
+        ):
+
+            record = _record(
+                "CFO Contribution",
+                period,
+                cash_from_operating / net_cash_flow
+            )
+
+            if record:
+                records.append(record)
 
         # --------------------------------------------------
         # Cash Conversion = CFO / Net Profit
@@ -277,22 +266,153 @@ def build_cash_flow_quality(cf_pivoted, pnl_pivoted):
             if record:
                 records.append(record)
 
+    return records
+
+
+# ==================================================
+# Growth Trends
+#
+# Reserves / Equity Capital are raw rupee-crore values.
+# Investment Migration is a decimal fraction (e.g. 0.12
+# for 12%). Borrowings to Net Worth Ratio is a plain
+# ratio (e.g. 0.6 means borrowings are 0.6x net worth).
+# ==================================================
+
+def build_growth_trends(bs_pivoted):
+
+    records = []
+
+    for row in bs_pivoted:
+
+        period = row["period"]
+
+        reserves = _get(row, ["Reserves"])
+        equity_capital = _get(row, ["Equity Capital"])
+        investments = _get(row, ["Investments"])
+        total_assets = _get(row, ["Total Assets"])
+        borrowings = _get(row, ["Borrowings"])
+
+        net_worth = None
+
+        if equity_capital is not None or reserves is not None:
+            net_worth = (equity_capital or 0) + (reserves or 0)
+
         # --------------------------------------------------
-        # Operating Cash Margin = CFO / Sales
+        # Reserves (raw)
         # --------------------------------------------------
 
-        if cash_from_operating is not None and sales:
+        if reserves is not None:
 
             record = _record(
-                "Operating Cash Margin",
+                "Reserves",
                 period,
-                cash_from_operating / sales
+                reserves,
+                decimals=2
+            )
+
+            if record:
+                records.append(record)
+
+        # --------------------------------------------------
+        # Equity Capital (raw)
+        # --------------------------------------------------
+
+        if equity_capital is not None:
+
+            record = _record(
+                "Equity Capital",
+                period,
+                equity_capital,
+                decimals=2
+            )
+
+            if record:
+                records.append(record)
+
+        # --------------------------------------------------
+        # Investment Migration = (Investments / Total Assets) * 100%
+        # --------------------------------------------------
+
+        if investments is not None and total_assets:
+
+            record = _record(
+                "Investment Migration",
+                period,
+                investments / total_assets
+            )
+
+            if record:
+                records.append(record)
+
+        # --------------------------------------------------
+        # Borrowings to Net Worth Ratio
+        #   = Borrowings / (Equity Capital + Reserves)
+        # --------------------------------------------------
+
+        if borrowings is not None and net_worth:
+
+            record = _record(
+                "Borrowings to Net Worth Ratio",
+                period,
+                borrowings / net_worth,
+                decimals=2
             )
 
             if record:
                 records.append(record)
 
     return records
+
+
+# ==================================================
+# Other Metrics
+#
+# Chart data points (not a pivot table). Each entry is
+# one point per period: {period, x, y}, in rupee-crore
+# values, ready to feed a scatter/line chart.
+# ==================================================
+
+def build_other_metrics(bs_pivoted):
+
+    total_liabilities_vs_total_assets = []
+    borrowings_vs_total_assets = []
+
+    for row in bs_pivoted:
+
+        period = row["period"]
+
+        total_assets = _get(row, ["Total Assets"])
+        total_liabilities = _get(row, ["Total Liabilities"])
+        borrowings = _get(row, ["Borrowings"])
+
+        # --------------------------------------------------
+        # Graph 1: Total Liabilities (y) vs Total Assets (x)
+        # --------------------------------------------------
+
+        if total_assets is not None and total_liabilities is not None:
+
+            total_liabilities_vs_total_assets.append({
+                "period": period,
+                "x": round(total_assets, 2),
+                "y": round(total_liabilities, 2)
+            })
+
+        # --------------------------------------------------
+        # Graph 2: Borrowings (y) vs Total Assets (x)
+        # --------------------------------------------------
+
+        if total_assets is not None and borrowings is not None:
+
+            borrowings_vs_total_assets.append({
+                "period": period,
+                "x": round(total_assets, 2),
+                "y": round(borrowings, 2)
+            })
+
+    return {
+        "total_liabilities_vs_total_assets": total_liabilities_vs_total_assets,
+        "borrowings_vs_total_assets": borrowings_vs_total_assets
+    }
 
 
 # ==================================================
@@ -317,10 +437,10 @@ def build_features(
 
     return {
         "profitability": build_profitability(pnl_pivoted),
-        "growth": build_growth(pnl_pivoted),
-        "leverage": build_leverage(bs_pivoted),
         "cash_flow_quality": build_cash_flow_quality(
             cf_pivoted,
             pnl_pivoted
         ),
+        "growth_trends": build_growth_trends(bs_pivoted),
+        "other_metrics": build_other_metrics(bs_pivoted),
     }
