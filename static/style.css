@@ -395,6 +395,25 @@ body {
 /* ================================
    FEATURE CHARTS
 ================================ */
+.chart-block {
+    margin-bottom: 32px;
+}
+
+.chart-block:last-child {
+    margin-bottom: 0;
+}
+
+.chart-block h3 {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+
+    color: var(--text-muted);
+
+    margin-bottom: 14px;
+}
 
 .chart-container {
     position: relative;
@@ -662,4 +681,132 @@ footer {
         font-size: 30px;
     }
 
+}
+
+/* ================================
+   OTHER METRICS CHARTS
+================================ */
+
+.chart-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 24px;
+}
+
+.chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    padding: 18px;
+}
+
+.chart-card h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 15px;
+    margin-bottom: 14px;
+}
+
+.chart-card canvas {
+    width: 100% !important;
+    height: 280px !important;
+}
+
+/* ================================
+   FUNDAMENTAL ANALYSIS
+================================ */
+
+.overall-verdict {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 24px;
+}
+
+.verdict-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+
+    padding: 6px 14px;
+
+    border-radius: 999px;
+
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.verdict-badge.overall {
+    font-size: 14px;
+    padding: 10px 20px;
+}
+
+.verdict-badge.verdict-positive {
+    background: rgba(52, 211, 153, 0.14);
+    color: var(--positive);
+    border: 1px solid rgba(52, 211, 153, 0.4);
+}
+
+.verdict-badge.verdict-negative {
+    background: rgba(244, 115, 90, 0.14);
+    color: var(--negative);
+    border: 1px solid rgba(244, 115, 90, 0.4);
+}
+
+.verdict-badge.verdict-mixed {
+    background: var(--gold-glow);
+    color: var(--gold);
+    border: 1px solid var(--gold-dim);
+}
+
+.analysis-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.analysis-card {
+    background: var(--surface-raised);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+}
+
+.analysis-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    margin-bottom: 12px;
+}
+
+.analysis-card-header h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 15px;
+}
+
+.analysis-bullets {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.analysis-bullets li {
+    position: relative;
+    padding-left: 16px;
+
+    color: var(--text-muted);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.analysis-bullets li::before {
+    content: "—";
+    position: absolute;
+    left: 0;
+    color: var(--gold-dim);
 }
