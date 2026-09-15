@@ -55,40 +55,42 @@ V3 builds on V2's Features engine by turning raw ratios into visual trend charts
 
 
 ## Project structure
+
+```
 ├── routes/
-│ ├── company.py # GET /company/{nse_code}, POST /company/{nse_code}/update
-│ ├── insights.py # GET /company/{nse_code}/insights
-│ ├── profit_loss.py # GET /company/{nse_code}/profit-loss
-│ ├── balance_sheet.py # GET /company/{nse_code}/balance-sheet
-│ ├── cash_flow.py # GET /company/{nse_code}/cash-flow
-│ └── features.py # GET /company/{nse_code}/features
-│ # GET /company/{nse_code}/fundamental-analysis
+│   ├── company.py         # GET /company/{nse_code}, POST /company/{nse_code}/update
+│   ├── insights.py        # GET /company/{nse_code}/insights
+│   ├── profit_loss.py     # GET /company/{nse_code}/profit-loss
+│   ├── balance_sheet.py   # GET /company/{nse_code}/balance-sheet
+│   ├── cash_flow.py       # GET /company/{nse_code}/cash-flow
+│   └── features.py        # GET /company/{nse_code}/features
+│                           # GET /company/{nse_code}/fundamental-analysis
 │
 ├── services/
-│ └── company_service.py # DB-first, scrape-if-missing orchestration
+│   └── company_service.py # DB-first, scrape-if-missing orchestration
 │
 ├── models/
-│ ├── company.py
-│ ├── qres_insights.py
-│ ├── profit_loss.py
-│ ├── balance_sheet.py
-│ └── cash_flow.py
+│   ├── company.py
+│   ├── qres_insights.py
+│   ├── profit_loss.py
+│   ├── balance_sheet.py
+│   └── cash_flow.py
 │
 ├── utils/
-│ ├── scraper.py # Selenium session management + scraping
-│ ├── database.py # PostgreSQL connection & queries
-│ ├── parser.py # Parses scraped Screener data
-│ ├── pivot.py # Pivots period-metric rows into per-period dicts
-│ ├── features.py # Computes profitability/cash-flow/growth-trend/other metrics
-│ ├── trend_analyzer.py # Rule-based Fundamental Analysis engine
-│ └── company_data.py
+│   ├── scraper.py         # Selenium session management + scraping
+│   ├── database.py        # PostgreSQL connection & queries
+│   ├── parser.py          # Parses scraped Screener data
+│   ├── pivot.py           # Pivots period-metric rows into per-period dicts
+│   ├── features.py        # Computes profitability/cash-flow/growth-trend/other metrics
+│   ├── trend_analyzer.py  # Rule-based Fundamental Analysis engine
+│   └── company_data.py
 │
 ├── templates/
-│ └── index.html
+│   └── index.html
 │
 ├── static/
-│ ├── app.js # Chart.js-based rendering for Features + Fundamental Analysis
-│ └── style.css
+│   ├── app.js              # Chart.js-based rendering for Features + Fundamental Analysis
+│   └── style.css
 │
 ├── test_parser.py
 ├── api.py
@@ -96,7 +98,7 @@ V3 builds on V2's Features engine by turning raw ratios into visual trend charts
 ├── requirements.txt
 ├── .env.example
 └── .gitignore
-
+```
 
 ---
 
