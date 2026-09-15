@@ -189,17 +189,39 @@ function switchTab(tabName) {
     activeButton.classList.add("active");
     activeButton.setAttribute("aria-selected", "true");
 
+    // ----------------------------------------------------
+    // Chart.js draws charts at their canvas's size at the
+    // moment they're created. Charts built while this tab
+    // was hidden (display:none) get created at 0 width and
+    // stay blank forever unless explicitly resized once the
+    // tab becomes visible.
+    // ----------------------------------------------------
+
+    if (tabName === "features") {
+
+        Object.values(chartInstances).forEach(chart => {
+            chart.resize();
+        });
+
+    }
+
 }
 
 
 /* =========================================
    FEATURES
 
-   Fetches computed ratios (profitability, growth,
-   leverage, cash flow quality) and renders each
-   category as a smooth line chart (Chart.js), with
-   click-to-toggle legend chips beneath each chart -
+   Fetches computed metrics (profitability, cash flow
+   quality, growth trends) and renders each category as
+   a set of smooth line charts (Chart.js), split into
+   multiple graphs per category so metrics with very
+   different scales don't flatten each other out. Each
+   graph has click-to-toggle legend chips beneath it -
    similar to Screener's own price/volume chart.
+
+   Other Metrics (Total Liabilities vs Total Assets,
+   Borrowings vs Total Assets) are rendered separately
+   as scatter charts, one point per period.
 ========================================= */
 
 const chartInstances = {};
@@ -212,6 +234,105 @@ const CHART_PALETTE = [
     "#38bdf8", // sky
     "#c084fc", // violet
 ];
+
+// --------------------------------------------------
+// Per-metric formatter, used for tooltips and for a
+// chart's y-axis ticks when metrics share one axis.
+// --------------------------------------------------
+
+const FEATURE_METRIC_CONFIG = {
+    "Effective Tax Rate": { formatter: formatRatioAsPercent },
+    "Operating Margin": { formatter: formatRatioAsPercent },
+    "Sales": { formatter: formatNumber },
+    "Net Profit": { formatter: formatNumber },
+    "Profit before Tax": { formatter: formatNumber },
+    "Profit After Tax": { formatter: formatNumber },
+
+    "Cash from Operating Activity (CFO)": { formatter: formatNumber },
+    "CFO Contribution": { formatter: formatRatioAsPercent },
+    "Cash Conversion (CFO / Net Profit)": { formatter: formatRatioAsPercent },
+
+    "Reserves": { formatter: formatNumber },
+    "Equity Capital": { formatter: formatNumber },
+    "Investment Migration": { formatter: formatRatioAsPercent },
+    "Borrowings to Net Worth Ratio": { formatter: formatRatio },
+};
+
+
+function getMetricConfig(metric) {
+
+    return FEATURE_METRIC_CONFIG[metric] || {
+        formatter: formatNumber
+    };
+
+}
+
+
+// --------------------------------------------------
+// Which graphs each category is split into, and which
+// metrics (in display order) belong on each graph.
+// dualAxis:true puts the first present metric on the
+// left axis and the second on the right axis, so metrics
+// of very different magnitude ("scaled down" pairs) each
+// get their own visual range instead of flattening the
+// smaller one.
+// --------------------------------------------------
+
+const FEATURE_CHART_GROUPS = {
+
+    profitability: [
+        {
+            canvas: "profitabilityChart1",
+            toggles: "profitabilityToggles1",
+            metrics: ["Effective Tax Rate", "Operating Margin"],
+            dualAxis: false
+        },
+        {
+            canvas: "profitabilityChart2",
+            toggles: "profitabilityToggles2",
+            metrics: ["Sales", "Net Profit"],
+            dualAxis: false
+        },
+        {
+            canvas: "profitabilityChart3",
+            toggles: "profitabilityToggles3",
+            metrics: ["Profit before Tax", "Profit After Tax"],
+            dualAxis: false
+        },
+    ],
+
+    cash_flow_quality: [
+        {
+            canvas: "cashflowChart1",
+            toggles: "cashflowToggles1",
+            metrics: ["Cash Conversion (CFO / Net Profit)", "CFO Contribution"],
+            dualAxis: false
+        },
+        {
+            canvas: "cashflowChart2",
+            toggles: "cashflowToggles2",
+            metrics: ["Cash from Operating Activity (CFO)"],
+            dualAxis: false
+        },
+    ],
+
+    growth_trends: [
+        {
+            canvas: "growthTrendsChart1",
+            toggles: "growthTrendsToggles1",
+            metrics: ["Investment Migration", "Borrowings to Net Worth Ratio"],
+            dualAxis: false
+        },
+        {
+            canvas: "growthTrendsChart2",
+            toggles: "growthTrendsToggles2",
+            metrics: ["Reserves", "Equity Capital"],
+            dualAxis: false
+        },
+    ],
+
+};
+
 
 async function loadFeatures(nseCode) {
 
@@ -234,33 +355,21 @@ async function loadFeatures(nseCode) {
             featuresTabButton.classList.remove("hidden");
         }
 
-        renderFeatureChart(
-            "profitabilityChart",
-            "profitabilityToggles",
-            data.profitability,
-            { asPercent: true }
-        );
+        FEATURE_CHART_GROUPS.profitability.forEach(group => {
+            renderMetricLineChart(group, data.profitability);
+        });
 
-        renderFeatureChart(
-            "growthChart",
-            "growthToggles",
-            data.growth,
-            { asPercent: true }
-        );
+        FEATURE_CHART_GROUPS.cash_flow_quality.forEach(group => {
+            renderMetricLineChart(group, data.cash_flow_quality);
+        });
 
-        renderFeatureChart(
-            "leverageChart",
-            "leverageToggles",
-            data.leverage,
-            { asPercent: false }
-        );
+        FEATURE_CHART_GROUPS.growth_trends.forEach(group => {
+            renderMetricLineChart(group, data.growth_trends);
+        });
 
-        renderFeatureChart(
-            "cashflowChart",
-            "cashflowToggles",
-            data.cash_flow_quality,
-            { asPercent: true }
-        );
+                renderOtherMetricsCharts(data.other_metrics);
+
+        loadFundamentalAnalysis(nseCode);
 
     }
 
@@ -282,67 +391,162 @@ async function loadFeatures(nseCode) {
 
 
 /* =========================================
-   FEATURE CHART RENDERER
+   FUNDAMENTAL ANALYSIS
 
-   Pivots flat { period, metric, value } records into
-   one Chart.js line dataset per metric, then draws a
-   dark-themed line chart with custom toggle chips
-   (instead of Chart.js's canvas-drawn legend, so the
-   toggles can be styled with real CSS to match the
-   rest of the UI).
+   Fetches the trend-based fundamental verdict (Phase 1
+   of the "Is this company good to trade?" pipeline) and
+   renders an overall badge plus one explainable card per
+   category (Profitability, Growth, Cash Flow, Leverage,
+   Capital Allocation).
 ========================================= */
 
-function renderFeatureChart(
-    canvasId,
-    togglesId,
-    records,
-    { asPercent }
-) {
+async function loadFundamentalAnalysis(nseCode) {
 
-    const canvas = document.getElementById(canvasId);
-    const togglesContainer = document.getElementById(togglesId);
+    const overallContainer =
+        document.getElementById("fundamentalOverallVerdict");
+
+    const cardsContainer =
+        document.getElementById("fundamentalAnalysisCards");
+
+    if (!overallContainer || !cardsContainer) {
+        return;
+    }
+
+    overallContainer.innerHTML = "";
+    cardsContainer.innerHTML = "";
+
+    try {
+
+        const response = await fetch(
+            `${API_BASE}/company/${nseCode}/fundamental-analysis`
+        );
+
+        if (!response.ok) {
+            throw new Error("Unable to load fundamental analysis");
+        }
+
+        const data = await response.json();
+
+        renderOverallVerdict(overallContainer, data.overall_verdict);
+
+        data.categories.forEach(category => {
+            cardsContainer.appendChild(buildAnalysisCard(category));
+        });
+
+    }
+
+    catch (error) {
+
+        console.error("loadFundamentalAnalysis failed:", error);
+
+    }
+
+}
+
+
+function renderOverallVerdict(container, verdict) {
+
+    const badge = document.createElement("div");
+
+    badge.className = `verdict-badge overall verdict-${verdict.toLowerCase()}`;
+    badge.textContent = `Fundamental Aspect: ${verdict}`;
+
+    container.appendChild(badge);
+
+}
+
+
+function buildAnalysisCard(category) {
+
+    const card = document.createElement("div");
+    card.className = "analysis-card";
+
+    const header = document.createElement("div");
+    header.className = "analysis-card-header";
+
+    const title = document.createElement("h3");
+    title.textContent = category.category;
+
+    const badge = document.createElement("span");
+    badge.className = `verdict-badge verdict-${category.verdict.toLowerCase()}`;
+    badge.textContent = category.verdict;
+
+    header.appendChild(title);
+    header.appendChild(badge);
+
+    const bulletList = document.createElement("ul");
+    bulletList.className = "analysis-bullets";
+
+    category.bullets.forEach(bulletText => {
+
+        const item = document.createElement("li");
+        item.textContent = bulletText;
+        bulletList.appendChild(item);
+
+    });
+
+    card.appendChild(header);
+    card.appendChild(bulletList);
+
+    return card;
+
+}
+
+
+/* =========================================
+   FEATURE LINE CHART RENDERER
+
+   Filters flat { period, metric, value } records down
+   to just the metrics in this graph, pivots them into
+   one Chart.js line dataset per metric, then draws a
+   dark-themed line chart. When dualAxis is true, the
+   first present metric goes on the left y-axis and the
+   second on the right, so two differently-scaled series
+   can share one chart without one flattening the other.
+========================================= */
+
+function renderMetricLineChart(group, records) {
+
+    const canvas = document.getElementById(group.canvas);
+    const togglesContainer = document.getElementById(group.toggles);
+
+    if (!canvas || !togglesContainer) {
+        return;
+    }
 
     togglesContainer.innerHTML = "";
 
-    // --------------------------------------------------
-    // Destroy any previous chart on this canvas before
-    // redrawing (Chart.js throws if you don't).
-    // --------------------------------------------------
-
-    if (chartInstances[canvasId]) {
-        chartInstances[canvasId].destroy();
-        delete chartInstances[canvasId];
+    if (chartInstances[group.canvas]) {
+        chartInstances[group.canvas].destroy();
+        delete chartInstances[group.canvas];
     }
 
-    if (!records || records.length === 0) {
+    const filtered = (records || []).filter(
+        record => group.metrics.includes(record.metric)
+    );
+
+    if (filtered.length === 0) {
         return;
     }
 
     // --------------------------------------------------
-    // Pivot: unique periods (x-axis) and unique metrics
-    // (one line series each), preserving first-seen order.
+    // Pivot: unique periods (x-axis), values per metric.
+    // Metric order follows group.metrics (not first-seen
+    // order in the data), so the spec'd ordering holds.
     // --------------------------------------------------
 
     const periods = [];
     const periodSeen = new Set();
 
-    const metrics = [];
-    const metricSeen = new Set();
-
     const valuesByMetric = {};
 
-    records.forEach(record => {
+    filtered.forEach(record => {
 
         const { period, metric, value } = record;
 
         if (!periodSeen.has(period)) {
             periodSeen.add(period);
             periods.push(period);
-        }
-
-        if (!metricSeen.has(metric)) {
-            metricSeen.add(metric);
-            metrics.push(metric);
         }
 
         if (!valuesByMetric[metric]) {
@@ -353,13 +557,27 @@ function renderFeatureChart(
 
     });
 
+    const presentMetrics = group.metrics.filter(
+        metric => valuesByMetric[metric]
+    );
+
+    if (presentMetrics.length === 0) {
+        return;
+    }
+
     // --------------------------------------------------
     // Build one dataset per metric
     // --------------------------------------------------
 
-    const datasets = metrics.map((metric, index) => {
+    const usesRightAxis = group.dualAxis && presentMetrics.length > 1;
+
+    const datasets = presentMetrics.map((metric, index) => {
 
         const color = CHART_PALETTE[index % CHART_PALETTE.length];
+
+        const axisId = group.dualAxis
+            ? (index === 0 ? "yLeft" : "yRight")
+            : "yShared";
 
         return {
             label: metric,
@@ -373,19 +591,74 @@ function renderFeatureChart(
             borderWidth: 2,
             tension: 0.35,
             spanGaps: true,
+            yAxisID: axisId,
         };
 
     });
 
     // --------------------------------------------------
+    // Axis config
+    // --------------------------------------------------
+
+    const tickFontConfig = {
+        color: "#58585e",
+        font: { family: "JetBrains Mono", size: 11 },
+    };
+
+    const scales = {
+        x: {
+            grid: { color: "#232326", drawTicks: false },
+            ticks: tickFontConfig,
+        },
+    };
+
+    if (group.dualAxis) {
+
+        const leftFormatter = getMetricConfig(presentMetrics[0]).formatter;
+        const rightFormatter = presentMetrics[1]
+            ? getMetricConfig(presentMetrics[1]).formatter
+            : leftFormatter;
+
+        scales.yLeft = {
+            position: "left",
+            display: true,
+            grid: { color: "#232326", drawTicks: false },
+            ticks: {
+                ...tickFontConfig,
+                callback: value => leftFormatter(value),
+            },
+        };
+
+        scales.yRight = {
+            position: "right",
+            display: usesRightAxis,
+            grid: { drawOnChartArea: false },
+            ticks: {
+                ...tickFontConfig,
+                callback: value => rightFormatter(value),
+            },
+        };
+
+    } else {
+
+        const sharedFormatter = getMetricConfig(presentMetrics[0]).formatter;
+
+        scales.yShared = {
+            position: "left",
+            grid: { color: "#232326", drawTicks: false },
+            ticks: {
+                ...tickFontConfig,
+                callback: value => sharedFormatter(value),
+            },
+        };
+
+    }
+
+    // --------------------------------------------------
     // Draw chart
     // --------------------------------------------------
 
-    const formatValue = asPercent
-        ? formatRatioAsPercent
-        : formatRatio;
-
-    chartInstances[canvasId] = new Chart(canvas, {
+    chartInstances[group.canvas] = new Chart(canvas, {
 
         type: "line",
 
@@ -418,39 +691,17 @@ function renderFeatureChart(
                     bodyColor: "#f2f1ec",
                     padding: 10,
                     callbacks: {
-                        label: context =>
-                            ` ${context.dataset.label}: ${formatValue(context.parsed.y)}`
+                        label: context => {
+                            const metric = context.dataset.label;
+                            const formatter = getMetricConfig(metric).formatter;
+                            return ` ${metric}: ${formatter(context.parsed.y)}`;
+                        }
                     }
                 },
 
             },
 
-            scales: {
-
-                x: {
-                    grid: {
-                        color: "#232326",
-                        drawTicks: false,
-                    },
-                    ticks: {
-                        color: "#58585e",
-                        font: { family: "JetBrains Mono", size: 11 },
-                    },
-                },
-
-                y: {
-                    grid: {
-                        color: "#232326",
-                        drawTicks: false,
-                    },
-                    ticks: {
-                        color: "#58585e",
-                        font: { family: "JetBrains Mono", size: 11 },
-                        callback: value => formatValue(value),
-                    },
-                },
-
-            },
+            scales: scales,
 
         },
 
@@ -462,7 +713,7 @@ function renderFeatureChart(
     // 200 DMA / Volume" checkboxes on Screener's chart.
     // --------------------------------------------------
 
-    metrics.forEach((metric, index) => {
+    presentMetrics.forEach((metric, index) => {
 
         const color = CHART_PALETTE[index % CHART_PALETTE.length];
 
@@ -476,7 +727,7 @@ function renderFeatureChart(
 
         checkbox.addEventListener("change", () => {
 
-            const chart = chartInstances[canvasId];
+            const chart = chartInstances[group.canvas];
 
             if (!chart) {
                 return;
@@ -498,6 +749,290 @@ function renderFeatureChart(
         chip.appendChild(text);
 
         togglesContainer.appendChild(chip);
+
+    });
+
+}
+
+
+/* =========================================
+   OTHER METRICS CHARTS
+
+   Two scatter charts, each plotting one point per
+   period: (Total Assets, Total Liabilities) and
+   (Total Assets, Borrowings).
+========================================= */
+// --------------------------------------------------
+// Converts a hex color like "#efbf04" into an rgba()
+// string at a given opacity, used to fade older points.
+// --------------------------------------------------
+
+function hexToRgba(hex, alpha) {
+
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+
+}
+
+
+// --------------------------------------------------
+// Draws an arrowhead at the newest point (showing the
+// direction of travel across periods) and labels the
+// oldest and newest points with their period, so the
+// trend direction is readable without hovering.
+// --------------------------------------------------
+
+const TREND_DIRECTION_PLUGIN = {
+
+    id: "trendDirection",
+
+    afterDatasetsDraw(chart) {
+
+        const { ctx } = chart;
+        const meta = chart.getDatasetMeta(0);
+        const points = meta.data;
+
+        if (!points || points.length < 2) {
+            return;
+        }
+
+        const first = points[0];
+        const last = points[points.length - 1];
+        const secondLast = points[points.length - 2];
+
+        // ----------------------------------------------
+        // Arrowhead pointing from the second-last point
+        // toward the newest (last) point.
+        // ----------------------------------------------
+
+        const angle = Math.atan2(
+            last.y - secondLast.y,
+            last.x - secondLast.x
+        );
+
+        const arrowLength = 9;
+
+        ctx.save();
+
+        ctx.fillStyle = "#efbf04";
+
+        ctx.beginPath();
+        ctx.moveTo(last.x, last.y);
+        ctx.lineTo(
+            last.x - arrowLength * Math.cos(angle - Math.PI / 6),
+            last.y - arrowLength * Math.sin(angle - Math.PI / 6)
+        );
+        ctx.lineTo(
+            last.x - arrowLength * Math.cos(angle + Math.PI / 6),
+            last.y - arrowLength * Math.sin(angle + Math.PI / 6)
+        );
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.restore();
+
+        // ----------------------------------------------
+        // Period labels at the start and end of the path
+        // ----------------------------------------------
+
+        const rawData = chart.data.datasets[0].data;
+        const firstPeriod = rawData[0]?.period;
+        const lastPeriod = rawData[rawData.length - 1]?.period;
+
+        ctx.save();
+        ctx.font = "11px 'JetBrains Mono', monospace";
+        ctx.textAlign = "center";
+
+        if (firstPeriod) {
+            ctx.fillStyle = "#8b8b91";
+            ctx.fillText(firstPeriod, first.x, first.y - 14);
+        }
+
+        if (lastPeriod) {
+            ctx.fillStyle = "#efbf04";
+            ctx.font = "bold 11px 'JetBrains Mono', monospace";
+            ctx.fillText(lastPeriod, last.x, last.y - 14);
+        }
+
+        ctx.restore();
+
+    }
+
+};
+
+function renderOtherMetricsCharts(otherMetrics) {
+
+    if (!otherMetrics) {
+        return;
+    }
+
+    renderScatterChart(
+        "totalLiabilitiesVsAssetsChart",
+        otherMetrics.total_liabilities_vs_total_assets,
+        "Total Liabilities",
+        "Total Assets"
+    );
+
+    renderScatterChart(
+        "borrowingsVsAssetsChart",
+        otherMetrics.borrowings_vs_total_assets,
+        "Borrowings",
+        "Total Assets"
+    );
+
+}
+
+
+function renderScatterChart(
+    canvasId,
+    points,
+    yLabel,
+    xLabel
+) {
+
+    const canvas = document.getElementById(canvasId);
+
+    if (!canvas) {
+        return;
+    }
+
+    if (chartInstances[canvasId]) {
+        chartInstances[canvasId].destroy();
+        delete chartInstances[canvasId];
+    }
+
+    if (!points || points.length === 0) {
+        return;
+    }
+
+    const chartData = points.map(point => ({
+        x: point.x,
+        y: point.y,
+        period: point.period
+    }));
+
+    // --------------------------------------------------
+    // Oldest points render small and faint, newest points
+    // render bigger and solid gold, so the direction of
+    // travel is visible at a glance along the path itself.
+    // --------------------------------------------------
+
+    const pointBackgroundColors = chartData.map((_, index) => {
+
+        const progress = chartData.length > 1
+            ? index / (chartData.length - 1)
+            : 1;
+
+        const alpha = 0.3 + progress * 0.7;
+
+        return hexToRgba("#efbf04", alpha);
+
+    });
+
+    const pointRadii = chartData.map((_, index) => {
+
+        const progress = chartData.length > 1
+            ? index / (chartData.length - 1)
+            : 1;
+
+        return 3 + progress * 4;
+
+    });
+
+    chartInstances[canvasId] = new Chart(canvas, {
+
+        type: "scatter",
+
+        data: {
+            datasets: [
+                {
+                    label: `${yLabel} vs ${xLabel}`,
+                    data: chartData,
+                    showLine: true,
+                    borderColor: "#efbf04",
+                    backgroundColor: "#efbf04",
+                    pointBackgroundColor: pointBackgroundColors,
+                    pointBorderColor: "transparent",
+                    pointRadius: pointRadii,
+                    pointHoverRadius: pointRadii.map(radius => radius + 2),
+                    borderWidth: 2,
+                    tension: 0.15,
+                }
+            ]
+        },
+
+        options: {
+
+            responsive: true,
+            maintainAspectRatio: false,
+
+            plugins: {
+
+                legend: {
+                    display: false,
+                },
+
+                tooltip: {
+                    backgroundColor: "#1c1c1f",
+                    borderColor: "#2a2a2e",
+                    borderWidth: 1,
+                    titleColor: "#8b8b91",
+                    bodyColor: "#f2f1ec",
+                    padding: 10,
+                    callbacks: {
+                        label: context => {
+                            const point = context.raw;
+                            return ` ${point.period}: ${xLabel} ${formatNumber(point.x)}, ${yLabel} ${formatNumber(point.y)}`;
+                        }
+                    }
+                },
+
+            },
+
+            scales: {
+
+                x: {
+                    title: {
+                        display: true,
+                        text: xLabel,
+                        color: "#8b8b91",
+                    },
+                    grid: {
+                        color: "#232326",
+                        drawTicks: false,
+                    },
+                    ticks: {
+                        color: "#58585e",
+                        font: { family: "JetBrains Mono", size: 11 },
+                        callback: value => formatNumber(value),
+                    },
+                },
+
+                y: {
+                    title: {
+                        display: true,
+                        text: yLabel,
+                        color: "#8b8b91",
+                    },
+                    grid: {
+                        color: "#232326",
+                        drawTicks: false,
+                    },
+                    ticks: {
+                        color: "#58585e",
+                        font: { family: "JetBrains Mono", size: 11 },
+                        callback: value => formatNumber(value),
+                    },
+                },
+
+            },
+
+        },
+
+        plugins: [TREND_DIRECTION_PLUGIN],
 
     });
 
