@@ -1,100 +1,102 @@
-# Financial Insights for Companies on NSE — V2
+# Financial Insights for Companies on NSE — V3
 
 A FastAPI application for retrieving, storing, and analyzing financial data for NSE-listed companies, sourced from Screener via Selenium and stored in PostgreSQL.
 
-V2 builds on the original scraping + storage pipeline by adding structured financial statements (Profit & Loss, Balance Sheet, Cash Flow) and a derived **Features** engine that computes profitability, growth, leverage, and cash-flow-quality ratios from that data.
+V3 builds on V2's Features engine by turning raw ratios into visual trend charts, and adds a rule-based **Fundamental Analysis** engine that reads those trends and produces an explainable POSITIVE / NEGATIVE / MIXED verdict, per category and overall — the first half of a larger "Is this company good to trade?" pipeline (the second half, a Technical Analysis aspect based on price/volume patterns, is planned for a later version).
 
 > V1 (the original single-table Insights scraper) is preserved as the [`v1.0` release](../../releases/tag/v1.0).
+> V2 (structured statements + computed ratios) is preserved as the [`v2.0` release](../../releases/tag/v2.0).
 
 ---
 
-## What's new in V2
+## What's new in V3
 
-- **Structured financial statements** — dedicated models/routes for Profit & Loss, Balance Sheet, and Cash Flow (previously only generic "Insights" existed)
-- **Computed Features** — an analysis layer (`utils/features.py`) that derives:
-  - **Profitability**: Operating Margin, Net Profit Margin, Effective Tax Rate
-  - **Growth**: Sales Growth, Net Profit Growth, EPS Growth (period-over-period)
-  - **Leverage**: Debt to Equity, Total Liabilities to Equity
-  - **Cash Flow Quality**: Cash Conversion (CFO / Net Profit), Operating Cash Margin
-- **Pivoted period views** — `utils/pivot.py` reshapes raw metric rows into one row per reporting period for easier consumption
-- **Service layer** — `services/company_service.py` centralizes the "fetch from DB, else scrape" logic previously spread across routes
-- **Lazy Selenium session** — the scraper only launches on first use (a missing company search or an explicit update), and the session is reused across requests until shutdown
-- **Refreshed frontend** — updated `static/app.js` / `static/style.css` and `templates/index.html`
+- **Restructured Features tab** — reorganized into four sections that better separate what's being measured:
+  - **Profitability**: Effective Tax Rate, Sales, Net Profit, Operating Margin, Profit before Tax, Profit After Tax
+  - **Cash Flow Quality**: Cash from Operating Activity (CFO), CFO Contribution, Cash Conversion
+  - **Growth Trends**: Reserves, Equity Capital, Investment Migration, Borrowings-to-Net-Worth Ratio
+  - **Other Metrics**: Total Liabilities vs Total Assets and Borrowings vs Total Assets, plotted as scatter charts with a visible trend direction (fading/growing points plus an arrow toward the latest period)
+- **Chart.js-powered charts** — the Features tab now renders interactive line and scatter charts (via Chart.js, loaded from CDN) instead of static tables, with click-to-toggle legend chips per metric and dual/shared y-axes chosen per chart so differently-scaled metrics don't flatten each other
+- **Fundamental Analysis engine** (`utils/trend_analyzer.py`) — a deterministic, rule-based layer on top of the Features data that:
+  - Classifies each key metric's trend over a trailing 7-period window as improving / declining / mixed (tolerant of up to 2 "blip" periods, with a majority-direction safeguard)
+  - Rolls trends up into five category verdicts — Profitability, Growth, Cash Flow, Leverage, Capital Allocation — each POSITIVE / NEGATIVE / MIXED with plain-language, explainable bullet reasons
+  - Rolls the five category verdicts up into one overall Fundamental Aspect verdict
+  - All thresholds and rollup rules live in one documented config block at the top of the file, intended to be reviewed and tuned by the team rather than treated as fixed
+- **New endpoint** — `GET /company/{nse_code}/fundamental-analysis`
+- **Makefile** — `make run` / `make activate` / `make deactivate` for a faster local dev loop (see note on `activate`/`deactivate` in the Makefile itself — `make` can't persist shell state, so those two just print the command to run yourself)
 
 ---
 
 ## Architecture
+                ┌──────────────────┐
+                │   Web Interface  │
+                │   index.html     │
+                └────────┬─────────┘
+                         │
+                         ▼
+                ┌──────────────────┐
+                │     FastAPI      │
+                │     Routes       │
+                └────────┬─────────┘
+                         │
+          ┌──────────────┼───────────────┐
+          │              │               │
+          ▼              ▼               ▼
+   ┌──────────────┐ ┌──────────┐ ┌───────────────────┐
+   │ PostgreSQL   │ │ Selenium │ │ Fundamental        │
+   │   Database   │ │ Scraper  │ │ Analysis Engine     │
+   └──────────────┘ └────┬─────┘ │ (trend_analyzer.py) │
+                          │       └───────────┬─────────┘
+                          ▼                   │
+                 ┌─────────────────┐          │
+                 │    Screener     │◄─────────┘
+                 └─────────────────┘   reads stored
+                                        statements from DB
 
-```
-                    ┌──────────────────┐
-                    │   Web Interface  │
-                    │   index.html     │
-                    └────────┬─────────┘
-                             │
-                             ▼
-                    ┌──────────────────┐
-                    │     FastAPI      │
-                    │     Routes       │
-                    └────────┬─────────┘
-                             │
-                    ┌────────┴─────────┐
-                    │                  │
-                    ▼                  ▼
-             ┌──────────────┐   ┌──────────────┐
-             │ PostgreSQL   │   │   Selenium   │
-             │   Database   │   │   Scraper    │
-             └──────────────┘   └──────┬───────┘
-                                       │
-                                       ▼
-                              ┌─────────────────┐
-                              │    Screener     │
-                              └─────────────────┘
-```
 
 ## Project structure
-
-```
-Screener Project V2/
-│
 ├── routes/
-│   ├── company.py         # GET /company/{nse_code}, POST /company/{nse_code}/update
-│   ├── insights.py        # GET /company/{nse_code}/insights
-│   ├── profit_loss.py     # GET /company/{nse_code}/profit-loss
-│   ├── balance_sheet.py   # GET /company/{nse_code}/balance-sheet
-│   ├── cash_flow.py       # GET /company/{nse_code}/cash-flow
-│   └── features.py        # GET /company/{nse_code}/features
+│ ├── company.py # GET /company/{nse_code}, POST /company/{nse_code}/update
+│ ├── insights.py # GET /company/{nse_code}/insights
+│ ├── profit_loss.py # GET /company/{nse_code}/profit-loss
+│ ├── balance_sheet.py # GET /company/{nse_code}/balance-sheet
+│ ├── cash_flow.py # GET /company/{nse_code}/cash-flow
+│ └── features.py # GET /company/{nse_code}/features
+│ # GET /company/{nse_code}/fundamental-analysis
 │
 ├── services/
-│   └── company_service.py # DB-first, scrape-if-missing orchestration
+│ └── company_service.py # DB-first, scrape-if-missing orchestration
 │
 ├── models/
-│   ├── company.py
-│   ├── qres_insights.py
-│   ├── profit_loss.py
-│   ├── balance_sheet.py
-│   └── cash_flow.py
+│ ├── company.py
+│ ├── qres_insights.py
+│ ├── profit_loss.py
+│ ├── balance_sheet.py
+│ └── cash_flow.py
 │
 ├── utils/
-│   ├── scraper.py         # Selenium session management + scraping
-│   ├── database.py        # PostgreSQL connection & queries
-│   ├── parser.py          # Parses scraped Screener data
-│   ├── pivot.py           # Pivots period-metric rows into per-period dicts
-│   ├── features.py        # Computes profitability/growth/leverage/cash-flow ratios
-│   └── company_data.py
+│ ├── scraper.py # Selenium session management + scraping
+│ ├── database.py # PostgreSQL connection & queries
+│ ├── parser.py # Parses scraped Screener data
+│ ├── pivot.py # Pivots period-metric rows into per-period dicts
+│ ├── features.py # Computes profitability/cash-flow/growth-trend/other metrics
+│ ├── trend_analyzer.py # Rule-based Fundamental Analysis engine
+│ └── company_data.py
 │
 ├── templates/
-│   └── index.html
+│ └── index.html
 │
 ├── static/
-│   ├── app.js
-│   └── style.css
+│ ├── app.js # Chart.js-based rendering for Features + Fundamental Analysis
+│ └── style.css
 │
 ├── test_parser.py
 ├── api.py
+├── Makefile
 ├── requirements.txt
 ├── .env.example
 └── .gitignore
-```
+
 
 ---
 
@@ -108,7 +110,8 @@ Screener Project V2/
 | GET | `/company/{nse_code}/profit-loss` | Profit & Loss statement, pivoted by period. |
 | GET | `/company/{nse_code}/balance-sheet` | Balance Sheet, pivoted by period. |
 | GET | `/company/{nse_code}/cash-flow` | Cash Flow statement, pivoted by period. |
-| GET | `/company/{nse_code}/features` | Computed ratios: profitability, growth, leverage, cash flow quality. |
+| GET | `/company/{nse_code}/features` | Computed metrics: Profitability, Cash Flow Quality, Growth Trends, Other Metrics. |
+| GET | `/company/{nse_code}/fundamental-analysis` | Rule-based trend analysis: per-category and overall POSITIVE / NEGATIVE / MIXED verdicts with explainable reasons. |
 
 Interactive docs available at `/docs` (Swagger UI) once the app is running.
 
@@ -120,49 +123,55 @@ Interactive docs available at `/docs` (Swagger UI) once the app is running.
 - **Web Scraping**: Selenium, Google Chrome / ChromeDriver
 - **Data Processing**: Pandas
 - **Database**: PostgreSQL, Psycopg
-- **Frontend**: HTML, JavaScript, CSS
+- **Frontend**: HTML, JavaScript, CSS, Chart.js (CDN)
 
 ---
 
 ## Installation
 
 1. Clone the repository
-   ```bash
+```bash
    git clone https://github.com/Mehulg2005/Financial-Insights-for-Companies-on-NSE.git
    cd Financial-Insights-for-Companies-on-NSE
-   ```
+```
 
 2. Create a virtual environment
-   ```bash
+```bash
    python3 -m venv .venv
    source .venv/bin/activate   # Windows: .venv\Scripts\activate
-   ```
+```
 
 3. Install dependencies
-   ```bash
+```bash
    pip install -r requirements.txt
-   ```
+```
 
 4. Configure environment variables — copy `.env.example` to `.env` and fill in your PostgreSQL credentials:
-   ```
-   DB_HOST=localhost
-   DB_PORT=5432
-   DB_NAME=your_database_name
-   DB_USER=your_database_user
-   DB_PASSWORD=your_database_password
-   ```
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=your_database_name
+DB_USER=your_database_user
+DB_PASSWORD=your_database_password
+
    `.env` is gitignored and should never be committed.
 
 5. Create the PostgreSQL database (the application initializes required tables on startup):
-   ```sql
+```sql
    CREATE DATABASE screener_db;
-   ```
+```
 
 ## Running the application
 
+Either directly:
 ```bash
 uvicorn api:app --reload
 ```
+
+Or via the Makefile:
+```bash
+make run
+```
+(`make activate` / `make deactivate` just print the venv activate/deactivate commands for you to run yourself — `make` can't persist environment changes into your terminal session. See the comments in `Makefile` for why.)
 
 - App: `http://127.0.0.1:8000`
 - Swagger UI: `http://127.0.0.1:8000/docs`
@@ -176,8 +185,9 @@ uvicorn api:app --reload
 3. If the company exists, stored data is returned directly.
 4. If not, a Selenium session (started lazily on first need) scrapes the company's Screener page.
 5. Scraped data is parsed (`utils/parser.py`) and stored in PostgreSQL.
-6. `utils/pivot.py` reshapes statement data by period for display; `utils/features.py` computes derived ratios on demand.
-7. The `/update` endpoint re-scrapes on request, reusing the same Selenium session for efficiency.
+6. `utils/pivot.py` reshapes statement data by period for display; `utils/features.py` computes derived metrics on demand.
+7. `utils/trend_analyzer.py` reads those same statements, classifies each key metric's trend over the trailing window, and rolls the results up into explainable category and overall Fundamental Analysis verdicts.
+8. The `/update` endpoint re-scrapes on request, reusing the same Selenium session for efficiency.
 
 ---
 
@@ -193,10 +203,12 @@ uvicorn api:app --reload
 
 ## Future Improvements
 
+- **Technical Analysis aspect** — price/volume pattern analysis, to be combined with the existing Fundamental Analysis aspect via AND logic into one final "good to trade?" verdict
+- **LLM-generated narrative summaries** — a locally-run model (via llamafile) to turn the structured Fundamental Analysis output into readable prose, without taking over the underlying decision logic
+- Validation of Fundamental Analysis thresholds across a larger set of companies
 - Automated scheduled data updates
 - Additional financial data sources
 - More advanced filtering and cross-company comparison
-- Data visualization / trend charts
 - User authentication
 - Cloud deployment
 - Automated testing (expand on `test_parser.py`)
