@@ -69,6 +69,8 @@ def build_profitability(pnl_pivoted):
             ["Profit before tax", "Profit before Tax"]
         )
 
+        eps = _get(row, ["EPS in Rs", "EPS"])
+
         # --------------------------------------------------
         # Operating Margin = Operating Profit / Sales
         # --------------------------------------------------
@@ -163,6 +165,24 @@ def build_profitability(pnl_pivoted):
                 "Profit After Tax",
                 period,
                 pat,
+                decimals=2
+            )
+
+            if record:
+                records.append(record)
+
+        # --------------------------------------------------
+        # EPS (raw) - a distinct signal from PAT level: PAT
+        # can rise while EPS stays flat or falls if the
+        # company has issued new shares (dilution).
+        # --------------------------------------------------
+
+        if eps is not None:
+
+            record = _record(
+                "EPS",
+                period,
+                eps,
                 decimals=2
             )
 
@@ -278,9 +298,14 @@ def build_cash_flow_quality(cf_pivoted, pnl_pivoted):
 # ratio (e.g. 0.6 means borrowings are 0.6x net worth).
 # ==================================================
 
-def build_growth_trends(bs_pivoted):
+def build_growth_trends(bs_pivoted, pnl_pivoted):
 
     records = []
+
+    pnl_by_period = {
+        row["period"]: row
+        for row in pnl_pivoted
+    }
 
     for row in bs_pivoted:
 
@@ -361,8 +386,31 @@ def build_growth_trends(bs_pivoted):
             if record:
                 records.append(record)
 
-    return records
+        # --------------------------------------------------
+        # Interest Coverage Ratio = Operating Profit / Interest
+        # Shows whether operating earnings can comfortably
+        # service the company's debt - a different question
+        # from "how much debt" (Borrowings to Net Worth above).
+        # --------------------------------------------------
 
+        pnl_row = pnl_by_period.get(period, {})
+
+        operating_profit = _get(pnl_row, ["Operating Profit"])
+        interest = _get(pnl_row, ["Interest"])
+
+        if operating_profit is not None and interest not in (None, 0):
+
+            record = _record(
+                "Interest Coverage Ratio",
+                period,
+                operating_profit / interest,
+                decimals=2
+            )
+
+            if record:
+                records.append(record)
+
+    return records
 
 # ==================================================
 # Other Metrics
@@ -441,6 +489,6 @@ def build_features(
             cf_pivoted,
             pnl_pivoted
         ),
-        "growth_trends": build_growth_trends(bs_pivoted),
+        "growth_trends": build_growth_trends(bs_pivoted, pnl_pivoted),
         "other_metrics": build_other_metrics(bs_pivoted),
     }
