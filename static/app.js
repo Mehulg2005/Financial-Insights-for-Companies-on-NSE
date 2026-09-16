@@ -256,6 +256,9 @@ const FEATURE_METRIC_CONFIG = {
     "Equity Capital": { formatter: formatNumber },
     "Investment Migration": { formatter: formatRatioAsPercent },
     "Borrowings to Net Worth Ratio": { formatter: formatRatio },
+    "Interest Coverage Ratio": { formatter: formatMultiple },
+
+    "EPS": { formatter: formatNumber },
 };
 
 
@@ -299,6 +302,12 @@ const FEATURE_CHART_GROUPS = {
             metrics: ["Profit before Tax", "Profit After Tax"],
             dualAxis: false
         },
+        {
+            canvas: "profitabilityChart4",
+            toggles: "profitabilityToggles4",
+            metrics: ["EPS"],
+            dualAxis: false
+        },
     ],
 
     cash_flow_quality: [
@@ -327,6 +336,12 @@ const FEATURE_CHART_GROUPS = {
             canvas: "growthTrendsChart2",
             toggles: "growthTrendsToggles2",
             metrics: ["Reserves", "Equity Capital"],
+            dualAxis: false
+        },
+        {
+            canvas: "growthTrendsChart3",
+            toggles: "growthTrendsToggles3",
+            metrics: ["Interest Coverage Ratio"],
             dualAxis: false
         },
     ],
@@ -586,7 +601,7 @@ function renderMetricLineChart(group, records) {
             ),
             borderColor: color,
             backgroundColor: color,
-            pointRadius: 0,
+            pointRadius: 2,
             pointHoverRadius: 4,
             borderWidth: 2,
             tension: 0.35,
@@ -1499,6 +1514,17 @@ function formatRatio(value) {
     }
 
     return Number(value).toFixed(2);
+
+}
+
+
+function formatMultiple(value) {
+
+    if (value === null || value === undefined) {
+        return "-";
+    }
+
+    return `${Number(value).toFixed(2)}x`;
 
 }
 
