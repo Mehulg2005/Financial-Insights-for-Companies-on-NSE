@@ -33,13 +33,9 @@ VENV_ACTIVATE := ~/.venv/bin/activate
 # --------------------------------------------------
 
 activate:
-	@echo "Run this directly in your terminal (not via make):"
-	@echo "  source $(VENV_ACTIVATE)"
 	source $(VENV_ACTIVATE)
-
-
 run:
-	source $(VENV_ACTIVATE) && uvicorn api:app --reload --host 127.0.0.1 --port 8000
+	uvicorn api:app --reload --host 127.0.0.1 --port 8000
 
 
 deactivate:
