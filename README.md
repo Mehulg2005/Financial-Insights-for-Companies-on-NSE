@@ -12,14 +12,14 @@ V3 builds on V2's Features engine by turning raw ratios into visual trend charts
 ## What's new in V3
 
 - **Restructured Features tab** — reorganized into four sections that better separate what's being measured:
-  - **Profitability**: Effective Tax Rate, Sales, Net Profit, Operating Margin, Profit before Tax, Profit After Tax
+  - **Profitability**: Effective Tax Rate, Sales, Net Profit, Operating Margin, Profit before Tax, Profit After Tax, EPS
   - **Cash Flow Quality**: Cash from Operating Activity (CFO), CFO Contribution, Cash Conversion
-  - **Growth Trends**: Reserves, Equity Capital, Investment Migration, Borrowings-to-Net-Worth Ratio
+  - **Growth Trends**: Reserves, Equity Capital, Investment Migration, Borrowings-to-Net-Worth Ratio, Interest Coverage Ratio
   - **Other Metrics**: Total Liabilities vs Total Assets and Borrowings vs Total Assets, plotted as scatter charts with a visible trend direction (fading/growing points plus an arrow toward the latest period)
 - **Chart.js-powered charts** — the Features tab now renders interactive line and scatter charts (via Chart.js, loaded from CDN) instead of static tables, with click-to-toggle legend chips per metric and dual/shared y-axes chosen per chart so differently-scaled metrics don't flatten each other
 - **Fundamental Analysis engine** (`utils/trend_analyzer.py`) — a deterministic, rule-based layer on top of the Features data that:
   - Classifies each key metric's trend over a trailing 7-period window as improving / declining / mixed (tolerant of up to 2 "blip" periods, with a majority-direction safeguard)
-  - Rolls trends up into five category verdicts — Profitability, Growth, Cash Flow, Leverage, Capital Allocation — each POSITIVE / NEGATIVE / MIXED with plain-language, explainable bullet reasons
+  - Rolls trends up into five category verdicts — Profitability, Growth, Cash Flow, Leverage, Capital Allocation — each POSITIVE / NEGATIVE / MIXED with plain-language, explainable bullet reasons. Profitability includes an EPS dilution check (flags PAT rising without EPS keeping pace); Leverage includes Interest Coverage Ratio alongside Borrowings-to-Net-Worth
   - Rolls the five category verdicts up into one overall Fundamental Aspect verdict
   - All thresholds and rollup rules live in one documented config block at the top of the file, intended to be reviewed and tuned by the team rather than treated as fixed
 - **New endpoint** — `GET /company/{nse_code}/fundamental-analysis`
@@ -28,6 +28,8 @@ V3 builds on V2's Features engine by turning raw ratios into visual trend charts
 ---
 
 ## Architecture
+
+```
                 ┌──────────────────┐
                 │   Web Interface  │
                 │   index.html     │
@@ -52,8 +54,7 @@ V3 builds on V2's Features engine by turning raw ratios into visual trend charts
                  │    Screener     │◄─────────┘
                  └─────────────────┘   reads stored
                                         statements from DB
-
-
+```
 ## Project structure
 
 ```
