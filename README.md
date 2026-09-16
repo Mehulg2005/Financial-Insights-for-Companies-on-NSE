@@ -23,7 +23,7 @@ V3 builds on V2's Features engine by turning raw ratios into visual trend charts
   - Rolls the five category verdicts up into one overall Fundamental Aspect verdict
   - All thresholds and rollup rules live in one documented config block at the top of the file, intended to be reviewed and tuned by the team rather than treated as fixed
 - **New endpoint** — `GET /company/{nse_code}/fundamental-analysis`
-- **Makefile** — `make run` / `make activate` / `make deactivate` for a faster local dev loop (see note on `activate`/`deactivate` in the Makefile itself — `make` can't persist shell state, so those two just print the command to run yourself)
+- **Makefile** — `make install` (installs dependencies from `requirements.txt`) and `make run` (activates the venv and starts the server) for a faster local dev loop
 
 ---
 
@@ -172,9 +172,10 @@ uvicorn api:app --reload
 
 Or via the Makefile:
 ```bash
+make install   # first time only, or whenever requirements.txt changes
 make run
 ```
-(`make activate` / `make deactivate` just print the venv activate/deactivate commands for you to run yourself — `make` can't persist environment changes into your terminal session. See the comments in `Makefile` for why.)
+Both targets activate the venv internally before running their command, so no separate activation step is needed — see the comments in `Makefile` for why this only works within a single line of a recipe, not as a standalone `activate` target.
 
 - App: `http://127.0.0.1:8000`
 - Swagger UI: `http://127.0.0.1:8000/docs`
