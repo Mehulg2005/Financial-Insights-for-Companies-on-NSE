@@ -7,37 +7,23 @@
 VENV_ACTIVATE := ~/.venv/bin/activate
 
 
-.PHONY: activate run deactivate
+.PHONY: install run
 
 
 # --------------------------------------------------
-# NOTE ON activate / deactivate
+# NOTE
 #
-# Each line `make` runs happens in its OWN throwaway
-# subshell that exits as soon as that command finishes.
-# That means `make activate` cannot leave your venv
-# activated in the terminal you're typing in - the
-# activation would only exist inside make's subshell,
-# which is already gone by the time make returns control
-# to you. This is a property of how `make` and shells
-# work, not something a Makefile can work around.
-#
-# So `activate` and `deactivate` below just print the
-# exact command to run - you still need to type (or
-# copy-paste) it into your own terminal yourself, not run
-# it via `make`, for it to actually take effect there.
-#
-# `make run`, on the other hand, DOES work end-to-end via
-# make, because it activates the venv and starts uvicorn
-# in the same subshell, on the same line.
+# Each line `make` runs happens in its own throwaway
+# subshell that exits as soon as that command finishes -
+# so venv activation only persists for the rest of THAT
+# line, not into your terminal or into other `make`
+# targets. Both commands below activate the venv and do
+# their actual work in the same line, for that reason.
 # --------------------------------------------------
 
-activate:
-	source $(VENV_ACTIVATE)
+install:
+	source $(VENV_ACTIVATE) && pip install -r requirements.txt
+
+
 run:
-	uvicorn api:app --reload --host 127.0.0.1 --port 8000
-
-
-deactivate:
-	@echo "Run this directly in your terminal (not via make):"
-	@echo "  deactivate"
+	source $(VENV_ACTIVATE) && uvicorn api:app --reload --host 127.0.0.1 --port 8000
