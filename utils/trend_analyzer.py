@@ -75,10 +75,13 @@ INVESTMENT_MIGRATION_STABLE_POINTS = 5.0
 
 PROFITABILITY_PAT_WEIGHT = 2       # headline: PAT level
 PROFITABILITY_MARGIN_WEIGHT = 1    # quality check: Operating Margin
+PROFITABILITY_EPS_WEIGHT = 1       # quality check: EPS (dilution check)
 
 GROWTH_REVENUE_WEIGHT = 2          # headline: Revenue level
 GROWTH_PAT_RATE_WEIGHT = 1         # quality check: PAT growth rate
 
+LEVERAGE_BORROWINGS_WEIGHT = 2     # headline: Borrowings-to-Net-Worth
+LEVERAGE_COVERAGE_WEIGHT = 1       # quality check: Interest Coverage Ratio
 
 # ==================================================
 # Low-level trend helpers
@@ -298,6 +301,34 @@ def _pat_growth_rate_bullet(trend):
     return None
 
 
+def _eps_bullet(net_profit_trend, eps_trend):
+    """
+    EPS bullet for Profitability. Framed as a dilution
+    check: if PAT (level) is rising but EPS isn't keeping
+    pace, that's a sign new shares have been issued faster
+    than profit has grown - each existing share is worth a
+    smaller slice of a bigger pie. This is the specific
+    insight EPS adds that PAT level alone can't show.
+    """
+
+    if eps_trend == "insufficient_data":
+        return "EPS: not enough periods of data to assess a trend."
+
+    if eps_trend == "improving":
+        return "EPS increased consistently."
+
+    if net_profit_trend == "improving" and eps_trend != "improving":
+        return (
+            "EPS did not rise in step with PAT - worth checking "
+            "for share dilution."
+        )
+
+    if eps_trend == "declining":
+        return "EPS declined consistently."
+
+    return "EPS trend was inconsistent period to period."
+
+
 def _rollup(trends):
     """
     Roll up a list of per-metric trend classifications
@@ -368,6 +399,7 @@ def _evaluate_profitability(pnl_pivoted):
     net_profit_series = _series(pnl_pivoted, ["Net Profit", "Net profit"])
     sales_series = _series(pnl_pivoted, ["Sales", "Revenue"])
     operating_profit_series = _series(pnl_pivoted, ["Operating Profit"])
+    eps_series = _series(pnl_pivoted, ["EPS in Rs", "EPS"])
 
     margin_series = [
         (operating_profit / sales) * 100
@@ -377,15 +409,18 @@ def _evaluate_profitability(pnl_pivoted):
 
     net_profit_trend = _classify_direction(net_profit_series, higher_is_better=True)
     margin_trend = _classify_direction(margin_series, higher_is_better=True)
+    eps_trend = _classify_direction(eps_series, higher_is_better=True)
 
     bullets = [
         _pat_level_bullet(net_profit_trend),
         _trend_bullet("Operating Margin", margin_trend, "improved", "worsened"),
+        _eps_bullet(net_profit_trend, eps_trend),
     ]
 
     verdict = _rollup_weighted([
         (net_profit_trend, PROFITABILITY_PAT_WEIGHT),
         (margin_trend, PROFITABILITY_MARGIN_WEIGHT),
+        (eps_trend, PROFITABILITY_EPS_WEIGHT),
     ])
 
     return {
@@ -495,7 +530,7 @@ def _evaluate_cash_flow(cf_pivoted, pnl_pivoted):
 #   - Borrowings-to-Net-Worth trend (lower is better)
 # ==================================================
 
-def _evaluate_leverage(bs_pivoted):
+def _evaluate_leverage(bs_pivoted, pnl_pivoted):
 
     ratio_series = []
 
@@ -516,19 +551,41 @@ def _evaluate_leverage(bs_pivoted):
     # lower is better here - a declining ratio is the
     # "improving" outcome
 
-    trend = _classify_direction(ratio_series, higher_is_better=False)
+    borrowings_trend = _classify_direction(ratio_series, higher_is_better=False)
 
-    bullet = _trend_bullet(
-        "Borrowings-to-Net-Worth",
-        trend,
-        "declined",
-        "increased"
-    )
+    # --------------------------------------------------
+    # Interest Coverage Ratio = Operating Profit / Interest.
+    # Both fields live on the P&L, so no cross-statement
+    # join is needed here (unlike Cash Flow, which genuinely
+    # needs to match CFO against PAT across two statements).
+    # --------------------------------------------------
+
+    coverage_series = []
+
+    for row in pnl_pivoted:
+
+        operating_profit = _get(row, ["Operating Profit"])
+        interest = _get(row, ["Interest"])
+
+        if operating_profit is not None and interest not in (None, 0):
+            coverage_series.append(operating_profit / interest)
+
+    coverage_trend = _classify_direction(coverage_series, higher_is_better=True)
+
+    bullets = [
+        _trend_bullet("Borrowings-to-Net-Worth", borrowings_trend, "declined", "increased"),
+        _trend_bullet("Interest Coverage Ratio", coverage_trend, "improved", "worsened"),
+    ]
+
+    verdict = _rollup_weighted([
+        (borrowings_trend, LEVERAGE_BORROWINGS_WEIGHT),
+        (coverage_trend, LEVERAGE_COVERAGE_WEIGHT),
+    ])
 
     return {
         "category": "Leverage",
-        "verdict": _rollup([trend]),
-        "bullets": [bullet] if bullet else []
+        "verdict": verdict,
+        "bullets": [bullet for bullet in bullets if bullet]
     }
 
 
@@ -720,7 +777,7 @@ def build_fundamental_analysis(
     profitability_result = _evaluate_profitability(pnl_pivoted)
     growth_result = _evaluate_growth(pnl_pivoted)
     cash_flow_result = _evaluate_cash_flow(cf_pivoted, pnl_pivoted)
-    leverage_result = _evaluate_leverage(bs_pivoted)
+    leverage_result = _evaluate_leverage(bs_pivoted, pnl_pivoted)
 
     # Capital Allocation needs Growth's verdict for context,
     # so it's computed after Growth rather than in parallel.
