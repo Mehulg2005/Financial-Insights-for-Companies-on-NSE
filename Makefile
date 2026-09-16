@@ -35,6 +35,7 @@ VENV_ACTIVATE := ~/.venv/bin/activate
 activate:
 	@echo "Run this directly in your terminal (not via make):"
 	@echo "  source $(VENV_ACTIVATE)"
+	source $(VENV_ACTIVATE)
 
 
 run:
