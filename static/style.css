@@ -810,3 +810,71 @@ footer {
     left: 0;
     color: var(--gold-dim);
 }
+
+
+/* ================================
+   PRICE TRACKER
+================================ */
+
+.price-tracker {
+    background: var(--surface);
+
+    padding: 22px 26px;
+
+    border-radius: var(--radius);
+
+    border: 1px solid var(--border-soft);
+
+    margin-bottom: 20px;
+}
+
+.price-tracker-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+
+    margin-bottom: 16px;
+}
+
+.price-tracker-value {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.price-current {
+    font-family: var(--font-mono);
+    font-size: 26px;
+    font-weight: 600;
+
+    color: var(--text);
+}
+
+.price-change {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.price-change.price-up {
+    color: var(--positive);
+}
+
+.price-change.price-down {
+    color: var(--negative);
+}
+
+.price-tracker-label {
+    color: var(--text-faint);
+
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.price-chart-container {
+    height: 220px;
+}
