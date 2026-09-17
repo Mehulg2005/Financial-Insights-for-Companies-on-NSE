@@ -12,7 +12,7 @@ from routes.profit_loss import router as profit_loss_router
 from routes.balance_sheet import router as balance_sheet_router
 from routes.cash_flow import router as cash_flow_router
 from routes.features import router as features_router
-
+from routes.price import router as price_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -76,3 +76,4 @@ app.include_router(profit_loss_router)
 app.include_router(balance_sheet_router)
 app.include_router(cash_flow_router)
 app.include_router(features_router)
+app.include_router(price_router)
