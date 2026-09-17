@@ -1147,7 +1147,7 @@ function startLivePriceRefresh(nseCode) {
 
     priceRefreshIntervalId = setInterval(() => {
         loadPriceChart(nseCode, "live");
-    }, 10000);
+    }, 60000);
 
 }
 
