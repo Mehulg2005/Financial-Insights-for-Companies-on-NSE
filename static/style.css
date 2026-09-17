@@ -878,3 +878,52 @@ footer {
 .price-chart-container {
     height: 220px;
 }
+
+
+/* ================================
+   PRICE TRACKER MODE TOGGLE
+================================ */
+
+.price-tracker-controls {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.price-mode-toggle {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.price-mode-button {
+    padding: 6px 14px;
+
+    border: none;
+    background: transparent;
+
+    color: var(--text-muted);
+
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+
+    cursor: pointer;
+
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.price-mode-button + .price-mode-button {
+    border-left: 1px solid var(--border);
+}
+
+.price-mode-button:hover {
+    color: var(--text);
+}
+
+.price-mode-button.active {
+    background: var(--gold);
+    color: #191204;
+}
