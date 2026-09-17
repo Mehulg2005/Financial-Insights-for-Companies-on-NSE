@@ -1168,7 +1168,7 @@ function updatePriceModeUI(mode) {
 
     if (labelEl) {
         labelEl.textContent = mode === "live"
-            ? "Live · updates every 10s"
+            ? "Live price · today"
             : "Delayed price · last 3 months";
     }
 
