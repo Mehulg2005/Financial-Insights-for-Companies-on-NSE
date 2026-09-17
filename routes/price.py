@@ -1,6 +1,10 @@
 from fastapi import APIRouter, HTTPException
 
-from services.price_service import fetch_price_chart, PriceFetchError
+from services.price_service import (
+    fetch_range_price_chart,
+    fetch_intraday_price_chart,
+    PriceFetchError,
+)
 
 
 router = APIRouter(
@@ -10,13 +14,16 @@ router = APIRouter(
 
 
 @router.get("/{nse_code}/price-chart")
-def company_price_chart(nse_code: str):
+def company_price_chart(nse_code: str, mode: str = "range"):
 
     nse_code = nse_code.upper()
 
     try:
 
-        data = fetch_price_chart(nse_code)
+        if mode == "live":
+            data = fetch_intraday_price_chart(nse_code)
+        else:
+            data = fetch_range_price_chart(nse_code)
 
     except PriceFetchError as error:
 
@@ -27,6 +34,7 @@ def company_price_chart(nse_code: str):
 
     return {
         "nse_code": nse_code,
+        "mode": mode,
         "candles": data["candles"],
         "closing_price": data["closing_price"],
         "change_value": data["change_value"],
