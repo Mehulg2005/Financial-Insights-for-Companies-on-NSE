@@ -28,7 +28,7 @@ class PriceFetchError(Exception):
 
 GROWW_BASE_URL = (
     "https://groww.in/v1/api/charting_service/v2/chart/"
-    "delayed/exchange/NSE/segment/CASH/{nse_code}/{resolution}"
+    "exchange/NSE/segment/CASH/{nse_code}/{resolution}"
 )
 
 REQUEST_TIMEOUT_SECONDS = 8
