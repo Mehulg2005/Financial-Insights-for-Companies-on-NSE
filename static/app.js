@@ -61,7 +61,11 @@ async function searchCompany() {
 
         loadFeatures(nseCode);
 
-        loadPriceChart(nseCode);
+        currentPriceNseCode = nseCode;
+        currentPriceMode = "live";
+        updatePriceModeUI("live");
+        loadPriceChart(nseCode, "live");
+        startLivePriceRefresh(nseCode);
 
     }
 
@@ -116,7 +120,12 @@ async function updateCompany() {
         const data = await response.json();
         displayCompany(data);
         loadFeatures(nseCode);
-        loadPriceChart(nseCode);
+        currentPriceNseCode = nseCode;
+        currentPriceMode = "live";
+        updatePriceModeUI("live");
+        loadPriceChart(nseCode, "live");
+        startLivePriceRefresh(nseCode);
+
     }
 
     catch (error) {
@@ -1043,12 +1052,20 @@ function renderScatterChart(
 /* =========================================
    PRICE TRACKER
 
-   Fetches delayed daily closing prices from Groww (last
-   3 months) and renders them as a line chart. Always
-   visible above the tab bar regardless of which tab
-   (Overview / Fundamentals) is active, and fetched fresh
-   on every search - not stored, always live from Groww.
+   Fetches price data from Groww and renders it as a line
+   chart. Always visible above the tab bar, independent of
+   which tab (Overview / Fundamentals) is active.
+
+   Two modes:
+     - "live"  : per-minute candles for today, polled every
+                 10 seconds. Default mode on every new search.
+     - "range" : daily closes over the last 3 months.
 ========================================= */
+
+let currentPriceNseCode = null;
+let currentPriceMode = "live";
+let priceRefreshIntervalId = null;
+
 
 function formatPrice(value) {
 
@@ -1086,7 +1103,118 @@ function formatChartDateFull(epochSeconds) {
 }
 
 
-async function loadPriceChart(nseCode) {
+function formatChartTime(epochSeconds) {
+
+    const date = new Date(epochSeconds * 1000);
+
+    return date.toLocaleTimeString("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+    });
+
+}
+
+
+function formatChartDateTime(epochSeconds) {
+
+    const date = new Date(epochSeconds * 1000);
+
+    return date.toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+    });
+
+}
+
+
+function stopLivePriceRefresh() {
+
+    if (priceRefreshIntervalId) {
+        clearInterval(priceRefreshIntervalId);
+        priceRefreshIntervalId = null;
+    }
+
+}
+
+
+function startLivePriceRefresh(nseCode) {
+
+    stopLivePriceRefresh();
+
+    priceRefreshIntervalId = setInterval(() => {
+        loadPriceChart(nseCode, "live");
+    }, 10000);
+
+}
+
+
+function updatePriceModeUI(mode) {
+
+    const liveButton = document.getElementById("priceModeLiveButton");
+    const rangeButton = document.getElementById("priceModeRangeButton");
+    const labelEl = document.getElementById("priceTrackerLabel");
+
+    if (liveButton) {
+        liveButton.classList.toggle("active", mode === "live");
+    }
+
+    if (rangeButton) {
+        rangeButton.classList.toggle("active", mode === "range");
+    }
+
+    if (labelEl) {
+        labelEl.textContent = mode === "live"
+            ? "Live · updates every 10s"
+            : "Delayed price · last 3 months";
+    }
+
+}
+
+
+function setPriceMode(mode) {
+
+    currentPriceMode = mode;
+
+    updatePriceModeUI(mode);
+
+    if (!currentPriceNseCode) {
+        return;
+    }
+
+    if (mode === "live") {
+
+        loadPriceChart(currentPriceNseCode, "live");
+        startLivePriceRefresh(currentPriceNseCode);
+
+    }
+
+    else {
+
+        stopLivePriceRefresh();
+        loadPriceChart(currentPriceNseCode, "range");
+
+    }
+
+}
+
+
+const priceModeLiveButton = document.getElementById("priceModeLiveButton");
+const priceModeRangeButton = document.getElementById("priceModeRangeButton");
+
+if (priceModeLiveButton) {
+    priceModeLiveButton.addEventListener("click", () => setPriceMode("live"));
+}
+
+if (priceModeRangeButton) {
+    priceModeRangeButton.addEventListener("click", () => setPriceMode("range"));
+}
+
+
+async function loadPriceChart(nseCode, mode) {
 
     const currentValueEl = document.getElementById("priceCurrentValue");
     const changeValueEl = document.getElementById("priceChangeValue");
@@ -1096,15 +1224,10 @@ async function loadPriceChart(nseCode) {
         return;
     }
 
-    if (chartInstances["priceChart"]) {
-        chartInstances["priceChart"].destroy();
-        delete chartInstances["priceChart"];
-    }
-
     try {
 
         const response = await fetch(
-            `${API_BASE}/company/${nseCode}/price-chart`
+            `${API_BASE}/company/${nseCode}/price-chart?mode=${mode}`
         );
 
         if (!response.ok) {
@@ -1154,12 +1277,26 @@ async function loadPriceChart(nseCode) {
         }
 
         // ----------------------------------------------
-        // Chart
+        // Chart - labels/tooltip formatting differ by mode
+        // (time-of-day for live, date for range)
         // ----------------------------------------------
 
-        const labels = candles.map(candle => formatChartDate(candle.timestamp));
+        const labelFormatter = mode === "live" ? formatChartTime : formatChartDate;
+        const titleFormatter = mode === "live" ? formatChartDateTime : formatChartDateFull;
+
+        const labels = candles.map(candle => labelFormatter(candle.timestamp));
         const prices = candles.map(candle => candle.price);
-        const fullDates = candles.map(candle => formatChartDateFull(candle.timestamp));
+        const fullLabels = candles.map(candle => titleFormatter(candle.timestamp));
+
+        // Only replace the chart once new data has successfully
+        // arrived and parsed - keeps the last good chart visible
+        // through a transient failure instead of flickering,
+        // which matters a lot at a 10-second live refresh rate.
+
+        if (chartInstances["priceChart"]) {
+            chartInstances["priceChart"].destroy();
+            delete chartInstances["priceChart"];
+        }
 
         chartInstances["priceChart"] = new Chart(canvas, {
 
@@ -1206,7 +1343,7 @@ async function loadPriceChart(nseCode) {
                         bodyColor: "#f2f1ec",
                         padding: 10,
                         callbacks: {
-                            title: context => fullDates[context[0].dataIndex],
+                            title: context => fullLabels[context[0].dataIndex],
                             label: context => ` ${formatPrice(context.parsed.y)}`
                         }
                     },
@@ -1253,12 +1390,21 @@ async function loadPriceChart(nseCode) {
 
         console.error("loadPriceChart failed:", error);
 
-        if (currentValueEl) {
-            currentValueEl.textContent = "Price unavailable";
-        }
+        // Only show "unavailable" if there was never a
+        // successful chart - a failed refresh tick on an
+        // already-showing chart just logs and keeps the
+        // last good data visible.
 
-        if (changeValueEl) {
-            changeValueEl.textContent = "";
+        if (!chartInstances["priceChart"]) {
+
+            if (currentValueEl) {
+                currentValueEl.textContent = "Price unavailable";
+            }
+
+            if (changeValueEl) {
+                changeValueEl.textContent = "";
+            }
+
         }
 
     }
