@@ -55,12 +55,13 @@ async function searchCompany() {
 
         }
 
-
         const data = await response.json();
 
         displayCompany(data);
 
         loadFeatures(nseCode);
+
+        loadPriceChart(nseCode);
 
     }
 
@@ -90,46 +91,32 @@ async function searchCompany() {
 ========================================= */
 
 updateButton.addEventListener("click", updateCompany);
-
-
 async function updateCompany() {
-
     const nseCode = nseInput.value.trim().toUpperCase();
-
     if (!nseCode) {
         showError("Please enter an NSE code.");
         return;
     }
-
     clearError();
-
     setLoading(updateButton, true, "Updating...");
     searchButton.disabled = true;
     try {
-
         const response = await fetch(
             `${API_BASE}/company/${nseCode}/update`,
             {
                 method: "POST"
             }
         );
-
         if (!response.ok) {
-
             const error = await response.json();
-
             throw new Error(
                 error.detail || "Unable to update company"
             );
-
         }
-
         const data = await response.json();
-
         displayCompany(data);
-
         loadFeatures(nseCode);
-
+        loadPriceChart(nseCode);
     }
 
     catch (error) {
@@ -1053,6 +1040,230 @@ function renderScatterChart(
 
 }
 
+/* =========================================
+   PRICE TRACKER
+
+   Fetches delayed daily closing prices from Groww (last
+   3 months) and renders them as a line chart. Always
+   visible above the tab bar regardless of which tab
+   (Overview / Fundamentals) is active, and fetched fresh
+   on every search - not stored, always live from Groww.
+========================================= */
+
+function formatPrice(value) {
+
+    if (value === null || value === undefined) {
+        return "-";
+    }
+
+    return `₹${Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+
+}
+
+
+function formatChartDate(epochSeconds) {
+
+    const date = new Date(epochSeconds * 1000);
+
+    return date.toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+    });
+
+}
+
+
+function formatChartDateFull(epochSeconds) {
+
+    const date = new Date(epochSeconds * 1000);
+
+    return date.toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+    });
+
+}
+
+
+async function loadPriceChart(nseCode) {
+
+    const currentValueEl = document.getElementById("priceCurrentValue");
+    const changeValueEl = document.getElementById("priceChangeValue");
+    const canvas = document.getElementById("priceChart");
+
+    if (!canvas) {
+        return;
+    }
+
+    if (chartInstances["priceChart"]) {
+        chartInstances["priceChart"].destroy();
+        delete chartInstances["priceChart"];
+    }
+
+    try {
+
+        const response = await fetch(
+            `${API_BASE}/company/${nseCode}/price-chart`
+        );
+
+        if (!response.ok) {
+            throw new Error("Unable to load price data");
+        }
+
+        const data = await response.json();
+        const candles = data.candles || [];
+
+        if (candles.length === 0) {
+            throw new Error("No price data returned");
+        }
+
+        // ----------------------------------------------
+        // Current price + change badge
+        // ----------------------------------------------
+
+        const latestPrice = candles[candles.length - 1].price;
+
+        if (currentValueEl) {
+            currentValueEl.textContent = formatPrice(latestPrice);
+        }
+
+        if (changeValueEl) {
+
+            changeValueEl.classList.remove("price-up", "price-down");
+
+            const changeValue = data.change_value;
+            const changePercent = data.change_percent;
+
+            if (changeValue !== null && changeValue !== undefined) {
+
+                const isUp = changeValue >= 0;
+
+                changeValueEl.classList.add(isUp ? "price-up" : "price-down");
+
+                changeValueEl.textContent =
+                    `${isUp ? "+" : ""}${formatPrice(changeValue)} ` +
+                    `(${isUp ? "+" : ""}${Number(changePercent).toFixed(2)}%)`;
+
+            } else {
+
+                changeValueEl.textContent = "";
+
+            }
+
+        }
+
+        // ----------------------------------------------
+        // Chart
+        // ----------------------------------------------
+
+        const labels = candles.map(candle => formatChartDate(candle.timestamp));
+        const prices = candles.map(candle => candle.price);
+        const fullDates = candles.map(candle => formatChartDateFull(candle.timestamp));
+
+        chartInstances["priceChart"] = new Chart(canvas, {
+
+            type: "line",
+
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: "Price",
+                        data: prices,
+                        borderColor: "#efbf04",
+                        backgroundColor: "rgba(239, 191, 4, 0.1)",
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                        borderWidth: 2,
+                        tension: 0.25,
+                        fill: true,
+                    }
+                ]
+            },
+
+            options: {
+
+                responsive: true,
+                maintainAspectRatio: false,
+
+                interaction: {
+                    mode: "index",
+                    intersect: false,
+                },
+
+                plugins: {
+
+                    legend: {
+                        display: false,
+                    },
+
+                    tooltip: {
+                        backgroundColor: "#1c1c1f",
+                        borderColor: "#2a2a2e",
+                        borderWidth: 1,
+                        titleColor: "#8b8b91",
+                        bodyColor: "#f2f1ec",
+                        padding: 10,
+                        callbacks: {
+                            title: context => fullDates[context[0].dataIndex],
+                            label: context => ` ${formatPrice(context.parsed.y)}`
+                        }
+                    },
+
+                },
+
+                scales: {
+
+                    x: {
+                        grid: {
+                            color: "#232326",
+                            drawTicks: false,
+                        },
+                        ticks: {
+                            color: "#58585e",
+                            font: { family: "JetBrains Mono", size: 10 },
+                            autoSkip: true,
+                            maxTicksLimit: 10,
+                            maxRotation: 0,
+                        },
+                    },
+
+                    y: {
+                        grid: {
+                            color: "#232326",
+                            drawTicks: false,
+                        },
+                        ticks: {
+                            color: "#58585e",
+                            font: { family: "JetBrains Mono", size: 11 },
+                            callback: value => formatPrice(value),
+                        },
+                    },
+
+                },
+
+            },
+
+        });
+
+    }
+
+    catch (error) {
+
+        console.error("loadPriceChart failed:", error);
+
+        if (currentValueEl) {
+            currentValueEl.textContent = "Price unavailable";
+        }
+
+        if (changeValueEl) {
+            changeValueEl.textContent = "";
+        }
+
+    }
+
+}
 
 /* =========================================
    DISPLAY COMPANY
