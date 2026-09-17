@@ -2,16 +2,23 @@ import requests
 
 
 # ==================================================
-# Groww price chart endpoint
+# Groww price chart endpoints
 #
-# Unofficial, undocumented endpoint discovered via
+# Unofficial, undocumented endpoints discovered via
 # browser DevTools (Network tab) on groww.in. No login
-# or cookies required. Since it's not a published/
-# versioned API, Groww can change its shape or break
-# this without notice - every failure mode here is
-# caught and surfaced as a clear error rather than
-# crashing the company page, since price data is a
-# bonus feature, not core to the app.
+# or cookies required. Since neither is a published/
+# versioned API, Groww can change their shape or break
+# without notice - every failure mode here is caught and
+# surfaced as a clear error rather than crashing the
+# company page, since price data is a bonus feature, not
+# core to the app.
+#
+# Two distinct resolutions, same response shape:
+#   - "monthly/v2" : daily closing candles over N months
+#   - "daily"      : per-minute candles for the current
+#                     trading day (used for the live view,
+#                     intended to be polled repeatedly by
+#                     the caller)
 # ==================================================
 
 class PriceFetchError(Exception):
@@ -19,9 +26,9 @@ class PriceFetchError(Exception):
     pass
 
 
-GROWW_CHART_URL = (
+GROWW_BASE_URL = (
     "https://groww.in/v1/api/charting_service/v2/chart/"
-    "delayed/exchange/NSE/segment/CASH/{nse_code}/monthly/v2"
+    "delayed/exchange/NSE/segment/CASH/{nse_code}/{resolution}"
 )
 
 REQUEST_TIMEOUT_SECONDS = 8
@@ -41,35 +48,22 @@ REQUEST_HEADERS = {
 }
 
 
-def fetch_price_chart(nse_code, months=3):
+def _fetch_groww_chart(nse_code, resolution, params):
     """
-    Fetch daily closing prices for the last `months` months
-    from Groww's delayed chart endpoint.
-
-    Returns a dict:
-        {
-            "candles": [{"timestamp": <epoch seconds>, "price": <float>}, ...],
-            "closing_price": <float> or None,
-            "change_value": <float> or None,
-            "change_percent": <float> or None,
-        }
-
-    Raises PriceFetchError on any failure (network issue,
-    unexpected status code, unexpected JSON shape) so the
-    caller can decide how to degrade gracefully instead of
-    the whole request blowing up.
+    Shared fetch + parse logic. The range and intraday
+    endpoints only differ in URL resolution segment and
+    query params - the response shape is otherwise
+    identical, so this is the one place that talks to
+    Groww and parses its JSON.
     """
 
-    url = GROWW_CHART_URL.format(nse_code=nse_code)
+    url = GROWW_BASE_URL.format(nse_code=nse_code, resolution=resolution)
 
     try:
 
         response = requests.get(
             url,
-            params={
-                "months": months,
-                "minimal": "true",
-            },
+            params=params,
             headers=REQUEST_HEADERS,
             timeout=REQUEST_TIMEOUT_SECONDS,
         )
@@ -122,3 +116,37 @@ def fetch_price_chart(nse_code, months=3):
         "change_value": payload.get("changeValue"),
         "change_percent": payload.get("changePerc"),
     }
+
+
+def fetch_range_price_chart(nse_code, months=3):
+    """
+    Daily closing prices over the last `months` months.
+    """
+
+    return _fetch_groww_chart(
+        nse_code,
+        resolution="monthly/v2",
+        params={
+            "months": months,
+            "minimal": "true",
+        },
+    )
+
+
+def fetch_intraday_price_chart(nse_code, interval_minutes=1):
+    """
+    Per-minute candles for the current trading day. This
+    function does a single fetch - the caller (the frontend,
+    via repeated requests to the /price-chart?mode=live
+    endpoint) is responsible for polling it on an interval
+    for a "live" view.
+    """
+
+    return _fetch_groww_chart(
+        nse_code,
+        resolution="daily",
+        params={
+            "intervalInMinutes": interval_minutes,
+            "minimal": "true",
+        },
+    )
