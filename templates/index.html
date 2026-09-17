@@ -76,6 +76,34 @@
             </div>
 
 
+            <!-- PRICE TRACKER -->
+            <!--
+                Always visible above the tabs, regardless of which
+                tab (Overview / Fundamentals) is active. Fetched
+                fresh from Groww on every search via loadPriceChart()
+                in app.js.
+            -->
+
+            <section class="price-tracker">
+
+                <div class="price-tracker-header">
+
+                    <div class="price-tracker-value">
+                        <span id="priceCurrentValue" class="price-current">-</span>
+                        <span id="priceChangeValue" class="price-change"></span>
+                    </div>
+
+                    <span class="price-tracker-label">Delayed price · last 3 months</span>
+
+                </div>
+
+                <div class="chart-container price-chart-container">
+                    <canvas id="priceChart"></canvas>
+                </div>
+
+            </section>
+
+
             <!-- TABS -->
 
             <div class="tab-bar" role="tablist">
@@ -97,7 +125,7 @@
                     role="tab"
                     aria-selected="false"
                 >
-                    Features
+                    Fundamentals
                 </button>
 
             </div>
@@ -253,8 +281,16 @@
 
             <div id="featuresTab" class="tab-panel hidden">
 
-                <!-- PROFITABILITY -->
+                <!-- FUNDAMENTAL ANALYSIS -->
+                <section class="data-section">
 
+                    <h2>Fundamental Analysis</h2>
+                    <div id="fundamentalOverallVerdict" class="overall-verdict"></div>
+                    <div id="fundamentalAnalysisCards" class="analysis-grid"></div>
+
+                </section>
+
+                <!-- PROFITABILITY -->
                 <section class="data-section">
 
                     <h2>Profitability</h2>
@@ -378,22 +414,10 @@
 
                 </section>
                 
-                <!-- FUNDAMENTAL ANALYSIS -->
-                <section class="data-section">
-
-                    <h2>Fundamental Analysis</h2>
-
-                    <div id="fundamentalOverallVerdict" class="overall-verdict"></div>
-
-                    <div id="fundamentalAnalysisCards" class="analysis-grid"></div>
-
-                </section>
-
             </div>
         </section>
 
     </main>
-
 
     <footer>
         Financial Insights API · v2.0.0
