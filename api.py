@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.templating import Jinja2Templates
 
 from contextlib import asynccontextmanager
 
@@ -58,13 +59,40 @@ app.mount(
     name="static"
 )
 
+templates = Jinja2Templates(directory="templates")
+
 # ==================================================
-# Root
+# Pages
+#
+# Bare paths (no "/company" prefix) so these never
+# collide with the JSON API routes below, which all
+# live under /company/{nse_code}/...
 # ==================================================
 
 @app.get("/")
-def root():
-    return FileResponse("templates/index.html")
+def landing_page(request: Request):
+
+    return templates.TemplateResponse(
+        "landing.html",
+        {
+            "request": request,
+            "nse_code": None,
+            "active_page": None,
+        }
+    )
+
+
+@app.get("/{nse_code}")
+def overview_page(request: Request, nse_code: str):
+
+    return templates.TemplateResponse(
+        "overview.html",
+        {
+            "request": request,
+            "nse_code": nse_code.upper(),
+            "active_page": "overview",
+        }
+    )
 
 # ==================================================
 # Routers
