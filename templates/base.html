@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Financial Insights{% endblock %}</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@600;700&family=Manrope:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        canvas: "#0C0C0E",
+                        surface: "#141416",
+                        "surface-raised": "#1C1C1F",
+                        "surface-elevated": "#242429",
+                        border: "#28282C",
+                        primary: "#FF5722",
+                        "primary-hover": "#F95721",
+                        "text-high": "#FFFFFF",
+                        "text-medium": "#8E8E93",
+                        "text-muted": "#636366",
+                        success: "#10B981",
+                        danger: "#FF5722",
+                        warning: "#F59E0B",
+                    },
+                    fontFamily: {
+                        display: ["Hanken Grotesk", "sans-serif"],
+                        body: ["Manrope", "sans-serif"],
+                        mono: ["JetBrains Mono", "monospace"],
+                    },
+                }
+            }
+        };
+    </script>
+
+    {% block extra_head %}{% endblock %}
+</head>
+
+<body class="bg-canvas text-text-high font-body min-h-screen flex">
+
+    <!-- SIDEBAR -->
+    <aside class="w-60 shrink-0 bg-surface border-r border-border flex flex-col">
+
+        <div class="px-5 py-6">
+            <div class="font-display font-bold text-lg">Financial Insights</div>
+            <div class="font-mono text-[10px] tracking-widest text-text-muted uppercase mt-1">NSE Company Analysis</div>
+        </div>
+
+        {% set base = "/" + nse_code if nse_code else None %}
+
+        <nav class="flex-1 px-3 space-y-1">
+
+            <a href="{{ base or '#' }}"
+               class="block px-3 py-2 rounded-lg text-sm font-medium border-l-2
+                      {% if active_page == 'overview' %}bg-surface-raised text-text-high border-primary{% else %}border-transparent text-text-medium hover:text-text-high{% endif %}
+                      {% if not nse_code %}pointer-events-none opacity-40{% endif %}">
+                Overview
+            </a>
+
+            <a href="{{ (base + '/fundamentals') if base else '#' }}"
+               class="block px-3 py-2 rounded-lg text-sm font-medium border-l-2
+                      {% if active_page == 'fundamentals' %}bg-surface-raised text-text-high border-primary{% else %}border-transparent text-text-medium hover:text-text-high{% endif %}
+                      {% if not nse_code %}pointer-events-none opacity-40{% endif %}">
+                Fundamentals
+            </a>
+
+            <a href="{{ (base + '/financials') if base else '#' }}"
+               class="block px-3 py-2 rounded-lg text-sm font-medium border-l-2
+                      {% if active_page == 'financials' %}bg-surface-raised text-text-high border-primary{% else %}border-transparent text-text-medium hover:text-text-high{% endif %}
+                      {% if not nse_code %}pointer-events-none opacity-40{% endif %}">
+                Financials
+            </a>
+
+            <a href="{{ (base + '/market') if base else '#' }}"
+               class="block px-3 py-2 rounded-lg text-sm font-medium border-l-2
+                      {% if active_page == 'market' %}bg-surface-raised text-text-high border-primary{% else %}border-transparent text-text-medium hover:text-text-high{% endif %}
+                      {% if not nse_code %}pointer-events-none opacity-40{% endif %}">
+                Market Performance
+            </a>
+
+        </nav>
+
+    </aside>
+
+
+    <!-- MAIN COLUMN -->
+    <div class="flex-1 flex flex-col min-w-0">
+
+        <!-- TOPBAR -->
+        <header class="flex items-center gap-3 px-6 py-4 border-b border-border">
+
+            <div class="flex-1 max-w-xl flex items-center bg-surface border border-border rounded-lg overflow-hidden">
+                <input
+                    type="text"
+                    id="nseInput"
+                    placeholder="Search NSE Ticker (e.g. HDFCBANK, RELIANCE, TCS)..."
+                    autocomplete="off"
+                    value="{{ nse_code or '' }}"
+                    class="flex-1 bg-transparent px-4 py-2 text-sm font-mono outline-none placeholder:text-text-muted"
+                >
+            </div>
+
+            <button id="searchButton"
+                class="px-4 py-2 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-hover transition">
+                Search
+            </button>
+
+            <button id="updateButton"
+                {% if not nse_code %}disabled{% endif %}
+                class="px-4 py-2 rounded-lg bg-surface-raised border border-border text-sm font-semibold text-text-high hover:bg-surface-elevated transition disabled:opacity-40 disabled:cursor-not-allowed">
+                Update
+            </button>
+
+        </header>
+
+        <p id="errorMessage" class="px-6 pt-3 text-sm text-primary font-mono"></p>
+
+        {% if nse_code %}
+        <!-- PRICE TRACKER (shell only - JS wiring lands with the Overview data step) -->
+        <section class="mx-6 mt-4 p-5 bg-surface border border-border rounded-2xl">
+
+            <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+
+                <div class="flex items-baseline gap-3">
+                    <span id="priceCurrentValue" class="font-mono text-2xl font-semibold">-</span>
+                    <span id="priceChangeValue" class="font-mono text-sm"></span>
+                </div>
+
+                <div class="flex items-center gap-4">
+
+                    <span id="priceTrackerLabel" class="font-mono text-[11px] uppercase tracking-widest text-text-muted">Live · updates every 10s</span>
+
+                    <div class="flex border border-border rounded-lg overflow-hidden">
+                        <button type="button" id="priceModeLiveButton" data-mode="live"
+                            class="price-mode-button px-3 py-1 text-xs font-mono font-semibold bg-primary text-white">Live</button>
+                        <button type="button" id="priceModeRangeButton" data-mode="range"
+                            class="price-mode-button px-3 py-1 text-xs font-mono font-semibold text-text-medium border-l border-border">3M</button>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="relative h-56">
+                <canvas id="priceChart"></canvas>
+            </div>
+
+        </section>
+        {% endif %}
+
+        <!-- PAGE CONTENT -->
+        <main class="flex-1 px-6 py-6">
+            {% block content %}{% endblock %}
+        </main>
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script>
+        const CURRENT_NSE_CODE = {{ nse_code | tojson }};
+    </script>
+    <script src="/static/base.js"></script>
+    {% block scripts %}{% endblock %}
+
+</body>
+</html>
