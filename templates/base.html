@@ -40,6 +40,40 @@
         };
     </script>
 
+    <style>
+        /* Utility-class toggle states that are simpler as
+           real CSS than as repeated Tailwind class juggling
+           in JS - kept intentionally small. */
+        .price-mode-button.active,
+        .preview-table-toggle.active {
+            background-color: #FF5722;
+            color: #ffffff;
+        }
+
+        /* Title card: dark "Hero & Kinetic Glow" treatment
+           from DESIGN.md - a warm orange wash fading into
+           the base surface, plus a soft orange underglow
+           shadow. Not a solid bright fill (that would clash
+           with the white company name text). */
+        .title-card {
+            background: linear-gradient(135deg, rgba(255, 87, 34, 0.16) 0%, rgba(28, 20, 16, 0.6) 45%, #141416 100%);
+            box-shadow: 0 8px 30px -6px rgba(255, 87, 34, 0.22);
+        }
+
+        /* Summary cards brighten slightly on hover, per the
+           decided interaction. !important guards against
+           Tailwind's CDN-injected stylesheet potentially
+           loading after this block and winning a specificity
+           tie on the same background-color property. */
+        .summary-card {
+            transition: background-color 150ms ease;
+        }
+
+        .summary-card:hover {
+            background-color: #242429 !important;
+        }
+    </style>
+
     {% block extra_head %}{% endblock %}
 </head>
 
@@ -123,23 +157,54 @@
         <p id="errorMessage" class="px-6 pt-3 text-sm text-primary font-mono"></p>
 
         {% if nse_code %}
-        <!-- PRICE TRACKER (shell only - JS wiring lands with the Overview data step) -->
+
+        <!-- TITLE CARD -->
+        <section class="mx-6 mt-4 title-card rounded-2xl border border-border p-6 flex items-center justify-between flex-wrap gap-4">
+
+            <div>
+                <div class="flex items-center gap-3 mb-1.5 flex-wrap">
+                    <h1 id="titleCardCompanyName" class="font-display text-2xl font-bold">{{ nse_code }}</h1>
+                    <span class="font-mono text-xs px-3 py-1 rounded-full bg-surface-elevated border border-border text-text-medium">
+                        NSE: {{ nse_code }}
+                    </span>
+                </div>
+
+                <div class="font-mono text-xs text-text-muted flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 rounded-full bg-primary inline-block"></span>
+                    <span id="titleCardSyncLabel">Last synced -</span>
+                </div>
+            </div>
+
+            <div class="text-right">
+                <div id="priceCurrentValue" class="font-mono text-3xl font-bold">-</div>
+                <div id="priceChangeValue" class="font-mono text-sm mt-1"></div>
+            </div>
+
+        </section>
+
+
+        <!-- PAGE-SPECIFIC CONTENT ABOVE THE PRICE CHART
+             (Overview's summary cards land here; other
+             pages can leave this block empty) -->
+        <div class="mx-6 mt-4">
+            {% block metrics %}{% endblock %}
+        </div>
+
+
+        <!-- PRICE TRACKER CHART -->
         <section class="mx-6 mt-4 p-5 bg-surface border border-border rounded-2xl">
 
             <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
 
-                <div class="flex items-baseline gap-3">
-                    <span id="priceCurrentValue" class="font-mono text-2xl font-semibold">-</span>
-                    <span id="priceChangeValue" class="font-mono text-sm"></span>
-                </div>
+                <h2 class="font-display font-semibold text-base">Share Price on NSE</h2>
 
                 <div class="flex items-center gap-4">
 
-                    <span id="priceTrackerLabel" class="font-mono text-[11px] uppercase tracking-widest text-text-muted">Live · updates every 10s</span>
+                    <span id="priceTrackerLabel" class="font-mono text-[11px] uppercase tracking-widest text-text-muted">Live · updates every 1m</span>
 
                     <div class="flex border border-border rounded-lg overflow-hidden">
                         <button type="button" id="priceModeLiveButton" data-mode="live"
-                            class="price-mode-button px-3 py-1 text-xs font-mono font-semibold bg-primary text-white">Live</button>
+                            class="price-mode-button px-3 py-1 text-xs font-mono font-semibold text-text-medium">Live</button>
                         <button type="button" id="priceModeRangeButton" data-mode="range"
                             class="price-mode-button px-3 py-1 text-xs font-mono font-semibold text-text-medium border-l border-border">3M</button>
                     </div>
@@ -166,6 +231,7 @@
     <script>
         const CURRENT_NSE_CODE = {{ nse_code | tojson }};
     </script>
+    <script src="/static/shared.js"></script>
     <script src="/static/base.js"></script>
     {% block scripts %}{% endblock %}
 

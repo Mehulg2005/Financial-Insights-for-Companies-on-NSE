@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.templating import Jinja2Templates
@@ -71,11 +71,10 @@ templates = Jinja2Templates(directory="templates")
 
 @app.get("/")
 def landing_page(request: Request):
-
     return templates.TemplateResponse(
+        request,
         "landing.html",
         {
-            "request": request,
             "nse_code": None,
             "active_page": None,
         }
@@ -84,11 +83,10 @@ def landing_page(request: Request):
 
 @app.get("/{nse_code}")
 def overview_page(request: Request, nse_code: str):
-
     return templates.TemplateResponse(
+        request,
         "overview.html",
         {
-            "request": request,
             "nse_code": nse_code.upper(),
             "active_page": "overview",
         }
