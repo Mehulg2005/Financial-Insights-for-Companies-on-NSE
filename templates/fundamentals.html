@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}{{ nse_code }} · Fundamentals{% endblock %}
+
+{% block metrics %}
+
+<!-- FUNDAMENTAL ANALYSIS -->
+<section class="bg-surface border border-border rounded-2xl p-6">
+
+    <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+        <h2 class="font-display font-semibold text-lg">Fundamental Analysis</h2>
+        <div id="overallVerdictContainer"></div>
+    </div>
+
+    <div id="analysisCardsContainer" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+
+</section>
+
+{% endblock %}
+
+{% block content %}
+
+<!-- PROFITABILITY -->
+<section class="bg-surface border border-border rounded-2xl p-5">
+
+    <h2 class="font-display font-semibold text-lg mb-5">Profitability</h2>
+
+    <div class="mb-8">
+        <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Effective Tax Rate &amp; Operating Margin</h3>
+        <div class="relative h-64"><canvas id="profitabilityChart1"></canvas></div>
+        <div id="profitabilityToggles1" class="flex flex-wrap gap-4 mt-3"></div>
+    </div>
+
+    <div class="mb-8">
+        <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Sales &amp; Net Profit</h3>
+        <div class="relative h-64"><canvas id="profitabilityChart2"></canvas></div>
+        <div id="profitabilityToggles2" class="flex flex-wrap gap-4 mt-3"></div>
+    </div>
+
+    <div class="mb-8">
+        <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Profit before Tax &amp; Profit after Tax</h3>
+        <div class="relative h-64"><canvas id="profitabilityChart3"></canvas></div>
+        <div id="profitabilityToggles3" class="flex flex-wrap gap-4 mt-3"></div>
+    </div>
+
+    <div>
+        <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">EPS (₹ per share)</h3>
+        <div class="relative h-64"><canvas id="profitabilityChart4"></canvas></div>
+        <div id="profitabilityToggles4" class="flex flex-wrap gap-4 mt-3"></div>
+    </div>
+
+</section>
+
+
+<!-- CASH FLOW QUALITY -->
+<section class="bg-surface border border-border rounded-2xl p-5 mt-4">
+
+    <h2 class="font-display font-semibold text-lg mb-5">Cash Flow Quality</h2>
+
+    <div class="mb-8">
+        <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Cash Conversion &amp; CFO Contribution</h3>
+        <div class="relative h-64"><canvas id="cashflowChart1"></canvas></div>
+        <div id="cashflowToggles1" class="flex flex-wrap gap-4 mt-3"></div>
+    </div>
+
+    <div>
+        <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Cash from Operating Activity (CFO)</h3>
+        <div class="relative h-64"><canvas id="cashflowChart2"></canvas></div>
+        <div id="cashflowToggles2" class="flex flex-wrap gap-4 mt-3"></div>
+    </div>
+
+</section>
+
+
+<!-- GROWTH TRENDS -->
+<section class="bg-surface border border-border rounded-2xl p-5 mt-4">
+
+    <h2 class="font-display font-semibold text-lg mb-5">Growth Trends</h2>
+
+    <div class="mb-8">
+        <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Investment Migration &amp; Borrowings to Net Worth Ratio</h3>
+        <div class="relative h-64"><canvas id="growthTrendsChart1"></canvas></div>
+        <div id="growthTrendsToggles1" class="flex flex-wrap gap-4 mt-3"></div>
+    </div>
+
+    <div class="mb-8">
+        <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Reserves &amp; Equity Capital</h3>
+        <div class="relative h-64"><canvas id="growthTrendsChart2"></canvas></div>
+        <div id="growthTrendsToggles2" class="flex flex-wrap gap-4 mt-3"></div>
+    </div>
+
+    <div>
+        <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Interest Coverage Ratio</h3>
+        <div class="relative h-64"><canvas id="growthTrendsChart3"></canvas></div>
+        <div id="growthTrendsToggles3" class="flex flex-wrap gap-4 mt-3"></div>
+    </div>
+
+</section>
+
+
+<!-- OTHER METRICS -->
+<section class="bg-surface border border-border rounded-2xl p-5 mt-4">
+
+    <h2 class="font-display font-semibold text-lg mb-5">Other Metrics</h2>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <div>
+            <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Total Liabilities vs Total Assets</h3>
+            <div class="relative h-64"><canvas id="totalLiabilitiesVsAssetsChart"></canvas></div>
+        </div>
+
+        <div>
+            <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Borrowings vs Total Assets</h3>
+            <div class="relative h-64"><canvas id="borrowingsVsAssetsChart"></canvas></div>
+        </div>
+
+    </div>
+
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/fundamentals.js"></script>
+{% endblock %}
