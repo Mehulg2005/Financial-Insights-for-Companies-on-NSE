@@ -711,7 +711,64 @@ async function loadFundamentals(nseCode) {
     loadDistressScores(nseCode);
 
 }
+/* =========================================
+   CATEGORY TOGGLE (Profitability / Cash Flow
+   Quality / Growth Trends / Other Metrics)
+========================================= */
 
+const CATEGORY_CANVAS_IDS = {
+    profitability: ["profitabilityChart1", "profitabilityChart2", "profitabilityChart3", "profitabilityChart4"],
+    cash_flow_quality: ["cashflowChart1", "cashflowChart2"],
+    growth_trends: ["growthTrendsChart1", "growthTrendsChart2", "growthTrendsChart3"],
+    other_metrics: ["totalLiabilitiesVsAssetsChart", "borrowingsVsAssetsChart"],
+};
+
+
+function switchCategoryPanel(category) {
+
+    Object.keys(CATEGORY_CANVAS_IDS).forEach(key => {
+
+        const panel = document.getElementById(`categoryPanel-${key}`);
+        const button = document.querySelector(`.category-toggle-button[data-category="${key}"]`);
+
+        if (panel) {
+            panel.classList.toggle("hidden", key !== category);
+        }
+
+        if (button) {
+            button.classList.toggle("active", key === category);
+        }
+
+    });
+
+    // All charts across all 4 categories are built up-front
+    // during loadFundamentals(), while 3 of the 4 panels are
+    // display:none - so their canvases render at 0 size.
+    // Resizing on reveal is the same fix used for tab
+    // switching earlier in this project.
+
+    const canvasIds = CATEGORY_CANVAS_IDS[category] || [];
+
+    canvasIds.forEach(id => {
+
+        const chart = chartInstances[id];
+
+        if (chart) {
+            chart.resize();
+        }
+
+    });
+
+}
+
+
+document.querySelectorAll(".category-toggle-button").forEach(button => {
+
+    button.addEventListener("click", () => {
+        switchCategoryPanel(button.dataset.category);
+    });
+
+});
 
 if (CURRENT_NSE_CODE) {
     loadFundamentals(CURRENT_NSE_CODE);
