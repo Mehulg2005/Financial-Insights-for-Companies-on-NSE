@@ -104,7 +104,8 @@ def financials_page(request: Request, nse_code: str):
         {
             "nse_code": nse_code.upper(),
             "active_page": "financials",
-            "show_price_tracker": False,
+            # Title card price keeps updating, but no chart card.
+            "price_tracker_mode": "title_only",
         }
     )
 
@@ -118,6 +119,9 @@ def fundamentals_page(request: Request, nse_code: str):
         {
             "nse_code": nse_code.upper(),
             "active_page": "fundamentals",
+            # No price data at all on this page - just the
+            # company name in the title card.
+            "price_tracker_mode": "none",
         }
     )
 # ==================================================
