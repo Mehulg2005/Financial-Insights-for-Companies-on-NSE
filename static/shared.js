@@ -278,3 +278,18 @@ function renderTitleCard(data) {
     }
 
 }
+
+
+
+function formatSyncDateLabel(date = new Date()) {
+
+    const formatted = date.toLocaleDateString("en-IN", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        timeZone: "Asia/Kolkata",
+    });
+
+    return `As of ${formatted}`;
+
+}
