@@ -103,6 +103,7 @@ def financials_page(request: Request, nse_code: str):
         {
             "nse_code": nse_code.upper(),
             "active_page": "financials",
+            "show_price_tracker": False,
         }
     )
 
