@@ -53,25 +53,6 @@ async function loadOverview(nseCode) {
 
 }
 
-
-function renderTitleCard(data) {
-
-    const company = data.company || {};
-
-    const nameEl = document.getElementById("titleCardCompanyName");
-    const syncEl = document.getElementById("titleCardSyncLabel");
-
-    if (nameEl && company.company_name) {
-        nameEl.textContent = company.company_name;
-    }
-
-    if (syncEl) {
-        syncEl.textContent = formatSyncTimestamp();
-    }
-
-}
-
-
 function renderSummaryCards(data) {
 
     const profitLoss = data.profit_loss;
