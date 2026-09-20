@@ -1,10 +1,5 @@
 /* =========================================
    FUNDAMENTALS PAGE
-
-   Fetches both /features (raw metric trends, charted) and
-   /fundamental-analysis (rule-based POSITIVE/NEGATIVE/MIXED
-   verdicts with explainable bullets) in parallel, and
-   renders the verdict cards above all the metric charts.
 ========================================= */
 
 const FEATURE_METRIC_CONFIG = {
@@ -59,12 +54,107 @@ const FEATURE_CHART_GROUPS = {
 
 
 /* =========================================
-   VERDICT CARDS
+   HERO VERDICT
 ========================================= */
 
-function renderOverallVerdict(verdict) {
+function renderHeroVerdict(analysisData) {
 
-    const container = document.getElementById("overallVerdictContainer");
+    const wordEl = document.getElementById("heroVerdictWord");
+    const summaryEl = document.getElementById("heroVerdictSummary");
+
+    const verdict = analysisData.overall_verdict;
+
+    if (wordEl) {
+
+        wordEl.textContent = verdict;
+        wordEl.className = verdict === "POSITIVE" ? "text-success"
+            : verdict === "NEGATIVE" ? "text-primary"
+            : "text-warning";
+
+    }
+
+    if (summaryEl) {
+
+        const positiveCount = analysisData.categories.filter(c => c.verdict === "POSITIVE").length;
+        const negativeCount = analysisData.categories.filter(c => c.verdict === "NEGATIVE").length;
+        const mixedCount = analysisData.categories.filter(c => c.verdict === "MIXED").length;
+
+        summaryEl.textContent =
+            `Based on trend analysis across the last periods: ${positiveCount} of 5 categories positive, ` +
+            `${negativeCount} negative, ${mixedCount} mixed. See the breakdown below for the specific reasons behind each.`;
+
+    }
+
+}
+
+
+/* =========================================
+   DISTRESS SCORE CHIPS
+========================================= */
+
+const DISTRESS_SCORE_DISPLAY = {
+    altman_z: {
+        label: "Altman Z",
+        format: data => data.score !== null && data.score !== undefined ? `${data.score}` : "—",
+        subtext: data => data.zone || data.note || "",
+    },
+    piotroski_f: {
+        label: "Piotroski F",
+        format: data => data.score !== null && data.score !== undefined ? `${data.score}/${data.max_score}` : "—",
+        subtext: data => data.band || data.note || "",
+    },
+    beneish_m: {
+        label: "Beneish M",
+        format: () => "—",
+        subtext: data => data.note || "Pending",
+    },
+    ohlson_o: {
+        label: "Ohlson O",
+        format: data => data.probability !== null && data.probability !== undefined ? `${(data.probability * 100).toFixed(1)}%` : "—",
+        subtext: data => data.risk || data.note || "",
+    },
+    springate_s: {
+        label: "Springate S",
+        format: data => data.score !== null && data.score !== undefined ? `${data.score}` : "—",
+        subtext: data => data.verdict || data.note || "",
+    },
+    zmijewski_x: {
+        label: "Zmijewski X",
+        format: data => data.score !== null && data.score !== undefined ? `${data.score}` : "—",
+        subtext: data => data.verdict || data.note || "",
+    },
+};
+
+
+function buildDistressScoreChip(label, valueText, subtext) {
+
+    const chip = document.createElement("div");
+    chip.className = "bg-surface-raised border border-border rounded-xl p-3";
+
+    const labelEl = document.createElement("div");
+    labelEl.className = "font-mono text-[10px] uppercase tracking-widest text-text-muted mb-1";
+    labelEl.textContent = label;
+
+    const valueEl = document.createElement("div");
+    valueEl.className = "font-mono text-lg font-semibold text-text-high";
+    valueEl.textContent = valueText;
+
+    const subtextEl = document.createElement("div");
+    subtextEl.className = "font-mono text-[10px] text-text-muted mt-0.5";
+    subtextEl.textContent = subtext;
+
+    chip.appendChild(labelEl);
+    chip.appendChild(valueEl);
+    chip.appendChild(subtextEl);
+
+    return chip;
+
+}
+
+
+function renderDistressScorePlaceholders() {
+
+    const container = document.getElementById("distressScoresContainer");
 
     if (!container) {
         return;
@@ -72,41 +162,97 @@ function renderOverallVerdict(verdict) {
 
     container.innerHTML = "";
 
-    const badge = document.createElement("span");
-    badge.className = `verdict-badge verdict-${verdict.toLowerCase()} text-sm px-4 py-2`;
-    badge.textContent = `Fundamental Aspect: ${verdict}`;
-
-    container.appendChild(badge);
+    Object.values(DISTRESS_SCORE_DISPLAY).forEach(config => {
+        container.appendChild(buildDistressScoreChip(config.label, "—", "Pending"));
+    });
 
 }
 
 
-function buildAnalysisCard(category) {
+function renderDistressScores(scores) {
+
+    const container = document.getElementById("distressScoresContainer");
+
+    if (!container) {
+        return;
+    }
+
+    container.innerHTML = "";
+
+    Object.keys(DISTRESS_SCORE_DISPLAY).forEach(key => {
+
+        const config = DISTRESS_SCORE_DISPLAY[key];
+        const scoreData = scores[key] || {};
+
+        container.appendChild(
+            buildDistressScoreChip(config.label, config.format(scoreData), config.subtext(scoreData))
+        );
+
+    });
+
+}
+
+
+async function loadDistressScores(nseCode) {
+
+    try {
+
+        const response = await fetch(`/company/${nseCode}/distress-scores`);
+
+        if (!response.ok) {
+            throw new Error("Unable to load distress scores");
+        }
+
+        const data = await response.json();
+
+        renderDistressScores(data.scores);
+
+    }
+
+    catch (error) {
+
+        console.error("loadDistressScores failed:", error);
+        renderDistressScorePlaceholders();
+
+    }
+
+}
+
+
+/* =========================================
+   PILLAR CARDS
+========================================= */
+
+function buildAnalysisCard(category, index) {
 
     const card = document.createElement("div");
-    card.className = "bg-surface-raised border border-border rounded-2xl p-5";
+    card.className = "bg-surface-raised border border-border rounded-2xl p-4";
 
-    const header = document.createElement("div");
-    header.className = "flex items-center justify-between mb-3";
+    const eyebrow = document.createElement("div");
+    eyebrow.className = "flex items-center justify-between mb-2";
 
-    const title = document.createElement("h3");
-    title.className = "font-display font-semibold text-base";
-    title.textContent = category.category;
+    const pillarLabel = document.createElement("span");
+    pillarLabel.className = "font-mono text-[10px] uppercase tracking-widest text-text-muted";
+    pillarLabel.textContent = `Pillar 0${index + 1}`;
 
     const badge = document.createElement("span");
     badge.className = `verdict-badge verdict-${category.verdict.toLowerCase()}`;
     badge.textContent = category.verdict;
 
-    header.appendChild(title);
-    header.appendChild(badge);
+    eyebrow.appendChild(pillarLabel);
+    eyebrow.appendChild(badge);
+
+    const title = document.createElement("h3");
+    title.className = "font-display font-semibold text-base mb-2";
+    title.textContent = category.category;
 
     const list = document.createElement("ul");
-    list.className = "space-y-2 text-sm text-text-medium";
+    list.className = "space-y-1.5 text-xs text-text-medium";
 
-    category.bullets.forEach(bulletText => {
+    category.bullets.slice(0, 2).forEach(bulletText => {
 
         const item = document.createElement("li");
-        item.className = "flex gap-2";
+        item.className = "flex gap-1.5";
 
         const dash = document.createElement("span");
         dash.className = "text-text-muted shrink-0";
@@ -121,7 +267,8 @@ function buildAnalysisCard(category) {
 
     });
 
-    card.appendChild(header);
+    card.appendChild(eyebrow);
+    card.appendChild(title);
     card.appendChild(list);
 
     return card;
@@ -501,6 +648,8 @@ function renderScatterChart(canvasId, points, yLabel, xLabel) {
 
 async function loadFundamentals(nseCode) {
 
+    renderDistressScorePlaceholders();
+
     try {
 
         const [featuresResponse, analysisResponse] = await Promise.all([
@@ -517,7 +666,7 @@ async function loadFundamentals(nseCode) {
 
         renderTitleCard(analysisData.company_name);
 
-        renderOverallVerdict(analysisData.overall_verdict);
+        renderHeroVerdict(analysisData);
 
         const cardsContainer = document.getElementById("analysisCardsContainer");
 
@@ -525,8 +674,8 @@ async function loadFundamentals(nseCode) {
 
             cardsContainer.innerHTML = "";
 
-            analysisData.categories.forEach(category => {
-                cardsContainer.appendChild(buildAnalysisCard(category));
+            analysisData.categories.forEach((category, index) => {
+                cardsContainer.appendChild(buildAnalysisCard(category, index));
             });
 
         }
@@ -558,6 +707,8 @@ async function loadFundamentals(nseCode) {
         }
 
     }
+
+    loadDistressScores(nseCode);
 
 }
 
