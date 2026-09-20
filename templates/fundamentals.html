@@ -22,106 +22,119 @@
 </section>
 
 
-<!-- PILLAR CARDS -->
-<div id="analysisCardsContainer" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4"></div>
+<!-- PILLAR CARDS - single horizontal row -->
+<div id="analysisCardsContainer" class="grid grid-cols-5 gap-3"></div>
 
 {% endblock %}
 
 {% block content %}
 
-<!-- PROFITABILITY -->
+<!-- METRIC CHARTS - switched via category toggle -->
 <section class="bg-surface border border-border rounded-2xl p-5">
 
-    <h2 class="font-display font-semibold text-lg mb-5">Profitability</h2>
-
-    <div class="mb-8">
-        <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Effective Tax Rate &amp; Operating Margin</h3>
-        <div class="relative h-64"><canvas id="profitabilityChart1"></canvas></div>
-        <div id="profitabilityToggles1" class="flex flex-wrap gap-4 mt-3"></div>
+    <div class="flex border border-border rounded-lg overflow-hidden mb-6">
+        <button type="button" class="category-toggle-button active flex-1 px-4 py-2.5 text-sm font-mono font-semibold text-text-medium" data-category="profitability">
+            Profitability
+        </button>
+        <button type="button" class="category-toggle-button flex-1 px-4 py-2.5 text-sm font-mono font-semibold text-text-medium border-l border-border" data-category="cash_flow_quality">
+            Cash Flow Quality
+        </button>
+        <button type="button" class="category-toggle-button flex-1 px-4 py-2.5 text-sm font-mono font-semibold text-text-medium border-l border-border" data-category="growth_trends">
+            Growth Trends
+        </button>
+        <button type="button" class="category-toggle-button flex-1 px-4 py-2.5 text-sm font-mono font-semibold text-text-medium border-l border-border" data-category="other_metrics">
+            Other Metrics
+        </button>
     </div>
 
-    <div class="mb-8">
-        <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Sales &amp; Net Profit</h3>
-        <div class="relative h-64"><canvas id="profitabilityChart2"></canvas></div>
-        <div id="profitabilityToggles2" class="flex flex-wrap gap-4 mt-3"></div>
-    </div>
 
-    <div class="mb-8">
-        <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Profit before Tax &amp; Profit after Tax</h3>
-        <div class="relative h-64"><canvas id="profitabilityChart3"></canvas></div>
-        <div id="profitabilityToggles3" class="flex flex-wrap gap-4 mt-3"></div>
-    </div>
+    <!-- PROFITABILITY -->
+    <div id="categoryPanel-profitability" class="category-panel">
 
-    <div>
-        <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">EPS (₹ per share)</h3>
-        <div class="relative h-64"><canvas id="profitabilityChart4"></canvas></div>
-        <div id="profitabilityToggles4" class="flex flex-wrap gap-4 mt-3"></div>
-    </div>
+        <div class="mb-8">
+            <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Effective Tax Rate &amp; Operating Margin</h3>
+            <div class="relative h-64"><canvas id="profitabilityChart1"></canvas></div>
+            <div id="profitabilityToggles1" class="flex flex-wrap gap-4 mt-3"></div>
+        </div>
 
-</section>
+        <div class="mb-8">
+            <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Sales &amp; Net Profit</h3>
+            <div class="relative h-64"><canvas id="profitabilityChart2"></canvas></div>
+            <div id="profitabilityToggles2" class="flex flex-wrap gap-4 mt-3"></div>
+        </div>
 
-
-<!-- CASH FLOW QUALITY -->
-<section class="bg-surface border border-border rounded-2xl p-5 mt-4">
-
-    <h2 class="font-display font-semibold text-lg mb-5">Cash Flow Quality</h2>
-
-    <div class="mb-8">
-        <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Cash Conversion &amp; CFO Contribution</h3>
-        <div class="relative h-64"><canvas id="cashflowChart1"></canvas></div>
-        <div id="cashflowToggles1" class="flex flex-wrap gap-4 mt-3"></div>
-    </div>
-
-    <div>
-        <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Cash from Operating Activity (CFO)</h3>
-        <div class="relative h-64"><canvas id="cashflowChart2"></canvas></div>
-        <div id="cashflowToggles2" class="flex flex-wrap gap-4 mt-3"></div>
-    </div>
-
-</section>
-
-
-<!-- GROWTH TRENDS -->
-<section class="bg-surface border border-border rounded-2xl p-5 mt-4">
-
-    <h2 class="font-display font-semibold text-lg mb-5">Growth Trends</h2>
-
-    <div class="mb-8">
-        <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Investment Migration &amp; Borrowings to Net Worth Ratio</h3>
-        <div class="relative h-64"><canvas id="growthTrendsChart1"></canvas></div>
-        <div id="growthTrendsToggles1" class="flex flex-wrap gap-4 mt-3"></div>
-    </div>
-
-    <div class="mb-8">
-        <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Reserves &amp; Equity Capital</h3>
-        <div class="relative h-64"><canvas id="growthTrendsChart2"></canvas></div>
-        <div id="growthTrendsToggles2" class="flex flex-wrap gap-4 mt-3"></div>
-    </div>
-
-    <div>
-        <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Interest Coverage Ratio</h3>
-        <div class="relative h-64"><canvas id="growthTrendsChart3"></canvas></div>
-        <div id="growthTrendsToggles3" class="flex flex-wrap gap-4 mt-3"></div>
-    </div>
-
-</section>
-
-
-<!-- OTHER METRICS -->
-<section class="bg-surface border border-border rounded-2xl p-5 mt-4">
-
-    <h2 class="font-display font-semibold text-lg mb-5">Other Metrics</h2>
-
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-        <div>
-            <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Total Liabilities vs Total Assets</h3>
-            <div class="relative h-64"><canvas id="totalLiabilitiesVsAssetsChart"></canvas></div>
+        <div class="mb-8">
+            <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Profit before Tax &amp; Profit after Tax</h3>
+            <div class="relative h-64"><canvas id="profitabilityChart3"></canvas></div>
+            <div id="profitabilityToggles3" class="flex flex-wrap gap-4 mt-3"></div>
         </div>
 
         <div>
-            <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Borrowings vs Total Assets</h3>
-            <div class="relative h-64"><canvas id="borrowingsVsAssetsChart"></canvas></div>
+            <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">EPS (₹ per share)</h3>
+            <div class="relative h-64"><canvas id="profitabilityChart4"></canvas></div>
+            <div id="profitabilityToggles4" class="flex flex-wrap gap-4 mt-3"></div>
+        </div>
+
+    </div>
+
+
+    <!-- CASH FLOW QUALITY -->
+    <div id="categoryPanel-cash_flow_quality" class="category-panel hidden">
+
+        <div class="mb-8">
+            <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Cash Conversion &amp; CFO Contribution</h3>
+            <div class="relative h-64"><canvas id="cashflowChart1"></canvas></div>
+            <div id="cashflowToggles1" class="flex flex-wrap gap-4 mt-3"></div>
+        </div>
+
+        <div>
+            <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Cash from Operating Activity (CFO)</h3>
+            <div class="relative h-64"><canvas id="cashflowChart2"></canvas></div>
+            <div id="cashflowToggles2" class="flex flex-wrap gap-4 mt-3"></div>
+        </div>
+
+    </div>
+
+
+    <!-- GROWTH TRENDS -->
+    <div id="categoryPanel-growth_trends" class="category-panel hidden">
+
+        <div class="mb-8">
+            <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Investment Migration &amp; Borrowings to Net Worth Ratio</h3>
+            <div class="relative h-64"><canvas id="growthTrendsChart1"></canvas></div>
+            <div id="growthTrendsToggles1" class="flex flex-wrap gap-4 mt-3"></div>
+        </div>
+
+        <div class="mb-8">
+            <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Reserves &amp; Equity Capital</h3>
+            <div class="relative h-64"><canvas id="growthTrendsChart2"></canvas></div>
+            <div id="growthTrendsToggles2" class="flex flex-wrap gap-4 mt-3"></div>
+        </div>
+
+        <div>
+            <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Interest Coverage Ratio</h3>
+            <div class="relative h-64"><canvas id="growthTrendsChart3"></canvas></div>
+            <div id="growthTrendsToggles3" class="flex flex-wrap gap-4 mt-3"></div>
+        </div>
+
+    </div>
+
+
+    <!-- OTHER METRICS -->
+    <div id="categoryPanel-other_metrics" class="category-panel hidden">
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            <div>
+                <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Total Liabilities vs Total Assets</h3>
+                <div class="relative h-64"><canvas id="totalLiabilitiesVsAssetsChart"></canvas></div>
+            </div>
+
+            <div>
+                <h3 class="font-mono text-xs uppercase tracking-widest text-text-muted mb-3">Borrowings vs Total Assets</h3>
+                <div class="relative h-64"><canvas id="borrowingsVsAssetsChart"></canvas></div>
+            </div>
+
         </div>
 
     </div>
