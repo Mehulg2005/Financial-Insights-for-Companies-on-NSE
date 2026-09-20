@@ -72,6 +72,64 @@
         .summary-card:hover {
             background-color: #242429 !important;
         }
+
+        /* Verdict badges - colors match DESIGN.md's Ticker
+           Pills & Status Badges spec exactly (Active/Positive,
+           Neutral/Medium, High Risk/Urgent), not invented. */
+        .verdict-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .verdict-badge.verdict-positive {
+            background-color: #0F291E;
+            color: #10B981;
+        }
+
+        .verdict-badge.verdict-negative {
+            background-color: #2C1714;
+            color: #FF5722;
+        }
+
+        .verdict-badge.verdict-mixed {
+            background-color: #232018;
+            color: #F59E0B;
+        }
+
+        /* Per-metric toggle chips beneath line charts */
+        .chart-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: #8E8E93;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .chart-toggle input[type="checkbox"] {
+            appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+            background: var(--toggle-color, #888);
+            opacity: 0.35;
+            cursor: pointer;
+            transition: opacity 0.15s ease;
+        }
+
+        .chart-toggle input[type="checkbox"]:checked {
+            opacity: 1;
+        }
     </style>
 
     {% block extra_head %}{% endblock %}
@@ -220,7 +278,7 @@
         </section>
         {% endif %}
         {% endif %}
-        
+
         <!-- PAGE CONTENT -->
         <main class="flex-1 px-6 py-6">
             {% block content %}{% endblock %}
