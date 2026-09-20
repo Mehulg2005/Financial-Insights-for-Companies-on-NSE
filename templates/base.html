@@ -45,7 +45,8 @@
            real CSS than as repeated Tailwind class juggling
            in JS - kept intentionally small. */
         .price-mode-button.active,
-        .preview-table-toggle.active {
+        .preview-table-toggle.active,
+        .category-toggle-button.active {
             background-color: #FF5722;
             color: #ffffff;
         }
@@ -214,9 +215,17 @@
 
         <p id="errorMessage" class="px-6 pt-3 text-sm text-primary font-mono"></p>
 
+                {% set price_mode = price_tracker_mode | default("full") %}
+
         {% if nse_code %}
 
-        <!-- TITLE CARD -->
+        {% if price_mode == "none" %}
+        <!-- MINIMAL TITLE CARD - company name only -->
+        <section class="mx-6 mt-4 title-card rounded-2xl border border-border p-6">
+            <h1 id="titleCardCompanyName" class="font-display text-2xl font-bold">{{ nse_code }}</h1>
+        </section>
+        {% else %}
+        <!-- FULL TITLE CARD -->
         <section class="mx-6 mt-4 title-card rounded-2xl border border-border p-6 flex items-center justify-between flex-wrap gap-4">
 
             <div>
@@ -239,6 +248,8 @@
             </div>
 
         </section>
+        {% endif %}
+
 
         <!-- PAGE-SPECIFIC CONTENT ABOVE THE PRICE CHART
              (Overview's summary cards land here; other
@@ -248,7 +259,7 @@
         </div>
 
 
-        {% if show_price_tracker | default(true) %}
+        {% if price_mode == "full" %}
         <!-- PRICE TRACKER CHART -->
         <section class="mx-6 mt-4 p-5 bg-surface border border-border rounded-2xl">
 
@@ -289,6 +300,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script>
         const CURRENT_NSE_CODE = {{ nse_code | tojson }};
+        const ENABLE_PRICE_TRACKER = {{ (price_mode != "none") | tojson }};
     </script>
     <script src="/static/shared.js"></script>
     <script src="/static/base.js"></script>
