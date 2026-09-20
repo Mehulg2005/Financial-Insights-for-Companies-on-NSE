@@ -262,15 +262,13 @@ function formatSyncTimestamp(date = new Date()) {
 
 }
 
-function renderTitleCard(data) {
-
-    const company = data.company || {};
+function renderTitleCard(companyName) {
 
     const nameEl = document.getElementById("titleCardCompanyName");
     const syncEl = document.getElementById("titleCardSyncLabel");
 
-    if (nameEl && company.company_name) {
-        nameEl.textContent = company.company_name;
+    if (nameEl && companyName) {
+        nameEl.textContent = companyName;
     }
 
     if (syncEl) {
@@ -278,8 +276,6 @@ function renderTitleCard(data) {
     }
 
 }
-
-
 
 function formatSyncDateLabel(date = new Date()) {
 
