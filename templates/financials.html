@@ -6,72 +6,42 @@
 
 <div class="mb-2">
     <h1 class="font-display text-xl font-bold">Financial Statements</h1>
-    <p class="text-text-medium text-sm mt-1">Full historical statement data, as scraped from Screener.</p>
+    <p id="financialsAsOfLabel" class="text-text-medium text-sm mt-1">As of -</p>
 </div>
 
 
 <section class="bg-surface border border-border rounded-2xl p-5 mt-4">
 
-    <div class="flex items-center gap-2 mb-4">
-        <span class="w-1 h-5 rounded-full bg-primary inline-block"></span>
-        <h2 class="font-display font-semibold text-lg">Income &amp; Profit Statement (P&amp;L)</h2>
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+
+        <h2 class="font-display font-semibold text-lg">Statement Detail</h2>
+
+        <div class="flex border border-border rounded-lg overflow-hidden">
+
+            <button type="button" class="preview-table-toggle active px-3 py-1.5 text-xs font-mono font-semibold text-text-medium" data-table="profit_loss">
+                Profit &amp; Loss
+            </button>
+
+            <button type="button" class="preview-table-toggle px-3 py-1.5 text-xs font-mono font-semibold text-text-medium border-l border-border" data-table="balance_sheet">
+                Balance Sheet
+            </button>
+
+            <button type="button" class="preview-table-toggle px-3 py-1.5 text-xs font-mono font-semibold text-text-medium border-l border-border" data-table="cash_flow">
+                Cash Flow
+            </button>
+
+            <button type="button" class="preview-table-toggle px-3 py-1.5 text-xs font-mono font-semibold text-text-medium border-l border-border" data-table="quarterly_insights">
+                Quarterly Insights
+            </button>
+
+        </div>
+
     </div>
 
     <div class="overflow-x-auto">
         <table class="w-full text-sm">
-            <thead id="plHead"></thead>
-            <tbody id="plBody"></tbody>
-        </table>
-    </div>
-
-</section>
-
-
-<section class="bg-surface border border-border rounded-2xl p-5 mt-4">
-
-    <div class="flex items-center gap-2 mb-4">
-        <span class="w-1 h-5 rounded-full bg-warning inline-block"></span>
-        <h2 class="font-display font-semibold text-lg">Balance Sheet</h2>
-    </div>
-
-    <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead id="bsHead"></thead>
-            <tbody id="bsBody"></tbody>
-        </table>
-    </div>
-
-</section>
-
-
-<section class="bg-surface border border-border rounded-2xl p-5 mt-4">
-
-    <div class="flex items-center gap-2 mb-4">
-        <span class="w-1 h-5 rounded-full bg-success inline-block"></span>
-        <h2 class="font-display font-semibold text-lg">Cash Flow Statement</h2>
-    </div>
-
-    <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead id="cfHead"></thead>
-            <tbody id="cfBody"></tbody>
-        </table>
-    </div>
-
-</section>
-
-
-<section class="bg-surface border border-border rounded-2xl p-5 mt-4">
-
-    <div class="flex items-center gap-2 mb-4">
-        <span class="w-1 h-5 rounded-full bg-primary inline-block"></span>
-        <h2 class="font-display font-semibold text-lg">Quarterly Insights</h2>
-    </div>
-
-    <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead id="qiHead"></thead>
-            <tbody id="qiBody"></tbody>
+            <thead id="financialsTableHead"></thead>
+            <tbody id="financialsTableBody"></tbody>
         </table>
     </div>
 
