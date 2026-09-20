@@ -261,3 +261,20 @@ function formatSyncTimestamp(date = new Date()) {
     return `Last synced ${time} IST`;
 
 }
+
+function renderTitleCard(data) {
+
+    const company = data.company || {};
+
+    const nameEl = document.getElementById("titleCardCompanyName");
+    const syncEl = document.getElementById("titleCardSyncLabel");
+
+    if (nameEl && company.company_name) {
+        nameEl.textContent = company.company_name;
+    }
+
+    if (syncEl) {
+        syncEl.textContent = formatSyncTimestamp();
+    }
+
+}
