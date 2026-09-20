@@ -83,12 +83,26 @@ def landing_page(request: Request):
 
 @app.get("/{nse_code}")
 def overview_page(request: Request, nse_code: str):
+
     return templates.TemplateResponse(
         request,
         "overview.html",
         {
             "nse_code": nse_code.upper(),
             "active_page": "overview",
+        }
+    )
+
+
+@app.get("/{nse_code}/financials")
+def financials_page(request: Request, nse_code: str):
+
+    return templates.TemplateResponse(
+        request,
+        "financials.html",
+        {
+            "nse_code": nse_code.upper(),
+            "active_page": "financials",
         }
     )
 
