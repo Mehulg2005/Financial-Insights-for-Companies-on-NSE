@@ -337,7 +337,7 @@ if (priceModeRangeButton) {
 }
 
 
-if (CURRENT_NSE_CODE) {
+if (CURRENT_NSE_CODE && ENABLE_PRICE_TRACKER) {
 
     updatePriceModeUI("live");
     loadPriceChart(CURRENT_NSE_CODE, "live");
