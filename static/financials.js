@@ -30,7 +30,7 @@ async function loadFinancials(nseCode) {
 
         financialsData = await response.json();
 
-        renderTitleCard(financialsData);
+        renderTitleCard(financialsData.company ? financialsData.company.company_name : null);
 
         const asOfLabel = document.getElementById("financialsAsOfLabel");
 
