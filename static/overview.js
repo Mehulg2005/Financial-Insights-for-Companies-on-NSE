@@ -33,7 +33,7 @@ async function loadOverview(nseCode) {
 
         overviewData = await response.json();
 
-        renderTitleCard(overviewData);
+        renderTitleCard(overviewData.company ? overviewData.company.company_name : null);
         renderSummaryCards(overviewData);
         renderPreviewTable(activePreviewTable);
 
