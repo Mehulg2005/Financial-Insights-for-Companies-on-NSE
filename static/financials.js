@@ -1,11 +1,22 @@
 /* =========================================
    FINANCIALS PAGE
 
-   Fetches the full company record and renders all four
-   statement tables with their FULL period history -
-   unlike Overview's preview table, nothing here is
-   truncated to a recent window.
+   Fetches the full company record once, then renders one
+   FULL-history statement table at a time (no truncation,
+   unlike Overview's 4-period preview), switched via the
+   same toggle pattern used on Overview.
 ========================================= */
+
+let financialsData = null;
+let activeFinancialsTable = "profit_loss";
+
+const FINANCIALS_TABLE_KEYS = {
+    profit_loss: "profit_loss",
+    balance_sheet: "balance_sheet",
+    cash_flow: "cash_flow",
+    quarterly_insights: "quarterly_insights",
+};
+
 
 async function loadFinancials(nseCode) {
 
@@ -17,14 +28,17 @@ async function loadFinancials(nseCode) {
             throw new Error("Company not found");
         }
 
-        const data = await response.json();
+        financialsData = await response.json();
 
-        renderTitleCard(data);
+        renderTitleCard(financialsData);
 
-        renderPivotTable("plHead", "plBody", data.profit_loss);
-        renderPivotTable("bsHead", "bsBody", data.balance_sheet);
-        renderPivotTable("cfHead", "cfBody", data.cash_flow);
-        renderPivotTable("qiHead", "qiBody", data.quarterly_insights);
+        const asOfLabel = document.getElementById("financialsAsOfLabel");
+
+        if (asOfLabel) {
+            asOfLabel.textContent = formatSyncDateLabel();
+        }
+
+        renderFinancialsTable(activeFinancialsTable);
 
     }
 
@@ -41,6 +55,38 @@ async function loadFinancials(nseCode) {
     }
 
 }
+
+
+function renderFinancialsTable(tableKey) {
+
+    if (!financialsData) {
+        return;
+    }
+
+    activeFinancialsTable = tableKey;
+
+    document.querySelectorAll(".preview-table-toggle").forEach(button => {
+        button.classList.toggle("active", button.dataset.table === tableKey);
+    });
+
+    const dataKey = FINANCIALS_TABLE_KEYS[tableKey];
+
+    renderPivotTable(
+        "financialsTableHead",
+        "financialsTableBody",
+        financialsData[dataKey]
+    );
+
+}
+
+
+document.querySelectorAll(".preview-table-toggle").forEach(button => {
+
+    button.addEventListener("click", () => {
+        renderFinancialsTable(button.dataset.table);
+    });
+
+});
 
 
 if (CURRENT_NSE_CODE) {
