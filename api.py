@@ -107,6 +107,18 @@ def financials_page(request: Request, nse_code: str):
         }
     )
 
+
+@app.get("/{nse_code}/fundamentals")
+def fundamentals_page(request: Request, nse_code: str):
+
+    return templates.TemplateResponse(
+        request,
+        "fundamentals.html",
+        {
+            "nse_code": nse_code.upper(),
+            "active_page": "fundamentals",
+        }
+    )
 # ==================================================
 # Routers
 # ==================================================
