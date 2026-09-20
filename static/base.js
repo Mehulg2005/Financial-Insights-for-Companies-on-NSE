@@ -173,9 +173,10 @@ async function loadPriceChart(nseCode, mode) {
     const changeValueEl = document.getElementById("priceChangeValue");
     const canvas = document.getElementById("priceChart");
 
-    if (!canvas) {
-        return;
-    }
+    // No early return on missing canvas: the title card's
+    // price number should keep updating even on pages that
+    // don't show the chart card (e.g. Financials). Only the
+    // chart-drawing code below is skipped when canvas is null.
 
     try {
 
@@ -229,6 +230,10 @@ async function loadPriceChart(nseCode, mode) {
         const labels = candles.map(candle => labelFormatter(candle.timestamp));
         const prices = candles.map(candle => candle.price);
         const fullLabels = candles.map(candle => titleFormatter(candle.timestamp));
+
+        if (!canvas) {
+            return;
+        }
 
         if (chartInstances["priceChart"]) {
             chartInstances["priceChart"].destroy();
