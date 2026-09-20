@@ -182,7 +182,6 @@
 
         </section>
 
-
         <!-- PAGE-SPECIFIC CONTENT ABOVE THE PRICE CHART
              (Overview's summary cards land here; other
              pages can leave this block empty) -->
@@ -191,6 +190,7 @@
         </div>
 
 
+        {% if show_price_tracker | default(true) %}
         <!-- PRICE TRACKER CHART -->
         <section class="mx-6 mt-4 p-5 bg-surface border border-border rounded-2xl">
 
@@ -199,6 +199,8 @@
                 <h2 class="font-display font-semibold text-base">Share Price on NSE</h2>
 
                 <div class="flex items-center gap-4">
+
+                    <span id="priceTrackerLabel" class="font-mono text-[11px] uppercase tracking-widest text-text-muted">Live · updates every 1m</span>
 
                     <div class="flex border border-border rounded-lg overflow-hidden">
                         <button type="button" id="priceModeLiveButton" data-mode="live"
@@ -217,7 +219,8 @@
 
         </section>
         {% endif %}
-
+        {% endif %}
+        
         <!-- PAGE CONTENT -->
         <main class="flex-1 px-6 py-6">
             {% block content %}{% endblock %}
