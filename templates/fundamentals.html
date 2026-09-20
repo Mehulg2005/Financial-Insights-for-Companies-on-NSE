@@ -4,17 +4,26 @@
 
 {% block metrics %}
 
-<!-- FUNDAMENTAL ANALYSIS -->
-<section class="bg-surface border border-border rounded-2xl p-6">
+<!-- FUNDAMENTAL ANALYSIS HERO -->
+<section class="title-card rounded-2xl border border-border p-6 mb-4">
 
-    <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <h2 class="font-display font-semibold text-lg">Fundamental Analysis</h2>
-        <div id="overallVerdictContainer"></div>
-    </div>
+    <div class="font-mono text-[11px] uppercase tracking-widest text-primary mb-2">Automated Quantitative Audit</div>
 
-    <div id="analysisCardsContainer" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+    <h2 class="font-display text-2xl md:text-3xl font-bold mb-3">
+        Fundamental Aspect: <span id="heroVerdictWord">-</span>
+    </h2>
+
+    <p id="heroVerdictSummary" class="text-text-medium text-sm max-w-3xl mb-6">
+        Loading trend analysis...
+    </p>
+
+    <div id="distressScoresContainer" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3"></div>
 
 </section>
+
+
+<!-- PILLAR CARDS -->
+<div id="analysisCardsContainer" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4"></div>
 
 {% endblock %}
 
