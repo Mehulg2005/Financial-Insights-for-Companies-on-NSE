@@ -55,7 +55,29 @@ from utils.features import _get
 # and true Gross Margin (GMI), neither of which is available
 # or has an agreed-upon proxy. Pending further data-source
 # decisions.
+#
+# TYPE HANDLING: values from the database (psycopg NUMERIC
+# columns) arrive as Python Decimal, while values from the
+# Groww price API arrive as plain float. Python doesn't allow
+# direct arithmetic between the two. _to_float() below is
+# applied at every extraction point in this file so all
+# downstream arithmetic operates on plain floats consistently.
 # ==================================================
+
+
+def _to_float(value):
+    """
+    Safely convert a DB-sourced Decimal (or int/float/None)
+    to a plain float, so it can be freely mixed with values
+    from other sources (e.g. the Groww price API) without
+    Python's Decimal/float arithmetic restriction raising a
+    TypeError.
+    """
+
+    if value is None:
+        return None
+
+    return float(value)
 
 
 def _latest_two_periods(pivoted_rows):
@@ -79,11 +101,11 @@ def _latest_two_periods(pivoted_rows):
 # ==================================================
 
 def _total_assets(bs_row):
-    return _get(bs_row, ["Total Assets"])
+    return _to_float(_get(bs_row, ["Total Assets"]))
 
 
 def _total_liabilities(bs_row):
-    return _get(bs_row, ["Total Liabilities"])
+    return _to_float(_get(bs_row, ["Total Liabilities"]))
 
 
 def _current_assets(bs_row):
@@ -91,7 +113,7 @@ def _current_assets(bs_row):
     Total Current Assets = Other Assets.
     """
 
-    return _get(bs_row, ["Other Assets"])
+    return _to_float(_get(bs_row, ["Other Assets"]))
 
 
 def _current_liabilities(bs_row):
@@ -99,7 +121,7 @@ def _current_liabilities(bs_row):
     Total Current Liabilities = Other Liabilities.
     """
 
-    return _get(bs_row, ["Other Liabilities"])
+    return _to_float(_get(bs_row, ["Other Liabilities"]))
 
 
 def _working_capital(bs_row):
@@ -119,8 +141,8 @@ def _ebit(pnl_row):
     and Springate B.
     """
 
-    profit_before_tax = _get(pnl_row, ["Profit before tax", "Profit before Tax"])
-    interest = _get(pnl_row, ["Interest"])
+    profit_before_tax = _to_float(_get(pnl_row, ["Profit before tax", "Profit before Tax"]))
+    interest = _to_float(_get(pnl_row, ["Interest"]))
 
     if profit_before_tax is None:
         return None
@@ -137,8 +159,8 @@ def _retained_earnings(pnl_row):
     not Altman's original cumulative balance-sheet definition).
     """
 
-    net_profit = _get(pnl_row, ["Net Profit", "Net profit"])
-    dividend_payout_percent = _get(pnl_row, ["Dividend Payout %"])
+    net_profit = _to_float(_get(pnl_row, ["Net Profit", "Net profit"]))
+    dividend_payout_percent = _to_float(_get(pnl_row, ["Dividend Payout %"]))
 
     if net_profit is None or dividend_payout_percent is None:
         return None
@@ -148,8 +170,9 @@ def _retained_earnings(pnl_row):
 
 def _market_value_of_equity(pnl_row, latest_price):
 
-    net_profit = _get(pnl_row, ["Net Profit", "Net profit"])
-    eps = _get(pnl_row, ["EPS in Rs", "EPS"])
+    net_profit = _to_float(_get(pnl_row, ["Net Profit", "Net profit"]))
+    eps = _to_float(_get(pnl_row, ["EPS in Rs", "EPS"]))
+    latest_price = _to_float(latest_price)
 
     if net_profit is None or eps in (None, 0) or latest_price is None:
         return None
@@ -169,7 +192,7 @@ def compute_altman_z(pnl_row, bs_row, latest_price):
     total_liabilities = _total_liabilities(bs_row)
     working_capital = _working_capital(bs_row)
     ebit = _ebit(pnl_row)
-    sales = _get(pnl_row, ["Sales", "Revenue"])
+    sales = _to_float(_get(pnl_row, ["Sales", "Revenue"]))
     retained_earnings = _retained_earnings(pnl_row)
     market_value_of_equity = _market_value_of_equity(pnl_row, latest_price)
 
@@ -222,9 +245,9 @@ def compute_piotroski_f(pnl_row, prior_pnl_row, bs_row, prior_bs_row, cf_row):
 
     points = 0
 
-    net_profit = _get(pnl_row, ["Net Profit", "Net profit"])
+    net_profit = _to_float(_get(pnl_row, ["Net Profit", "Net profit"]))
     total_assets = _total_assets(bs_row)
-    cfo = _get(cf_row, ["Cash from Operating Activity"]) if cf_row else None
+    cfo = _to_float(_get(cf_row, ["Cash from Operating Activity"])) if cf_row else None
 
     # 1. Net Income positive
     if net_profit is not None and net_profit > 0:
@@ -245,8 +268,8 @@ def compute_piotroski_f(pnl_row, prior_pnl_row, bs_row, prior_bs_row, cf_row):
     # 5. Long-term debt ratio decreased YoY (total Borrowings/
     #    Total Assets used as proxy - Screener doesn't split
     #    long-term vs short-term debt)
-    borrowings = _get(bs_row, ["Borrowings"])
-    prior_borrowings = _get(prior_bs_row, ["Borrowings"])
+    borrowings = _to_float(_get(bs_row, ["Borrowings"]))
+    prior_borrowings = _to_float(_get(prior_bs_row, ["Borrowings"]))
     prior_total_assets = _total_assets(prior_bs_row)
 
     if (
@@ -270,8 +293,8 @@ def compute_piotroski_f(pnl_row, prior_pnl_row, bs_row, prior_bs_row, cf_row):
             points += 1
 
     # 7. No new shares issued (Equity Capital unchanged or lower YoY)
-    equity_capital = _get(bs_row, ["Equity Capital"])
-    prior_equity_capital = _get(prior_bs_row, ["Equity Capital"])
+    equity_capital = _to_float(_get(bs_row, ["Equity Capital"]))
+    prior_equity_capital = _to_float(_get(prior_bs_row, ["Equity Capital"]))
 
     if equity_capital is not None and prior_equity_capital is not None:
         if equity_capital <= prior_equity_capital:
@@ -281,8 +304,8 @@ def compute_piotroski_f(pnl_row, prior_pnl_row, bs_row, prior_bs_row, cf_row):
     #    decision, no reliable Gross Margin data available.
 
     # 9. Asset Turnover increased YoY
-    sales = _get(pnl_row, ["Sales", "Revenue"])
-    prior_sales = _get(prior_pnl_row, ["Sales", "Revenue"])
+    sales = _to_float(_get(pnl_row, ["Sales", "Revenue"]))
+    prior_sales = _to_float(_get(prior_pnl_row, ["Sales", "Revenue"]))
 
     if (
         None not in (sales, prior_sales, total_assets, prior_total_assets)
@@ -317,8 +340,8 @@ def compute_ohlson_o(pnl_row, prior_pnl_row, bs_row, cf_row):
     working_capital = _working_capital(bs_row)
     current_assets = _current_assets(bs_row)
     current_liabilities = _current_liabilities(bs_row)
-    net_income = _get(pnl_row, ["Net Profit", "Net profit"])
-    cfo = _get(cf_row, ["Cash from Operating Activity"]) if cf_row else None
+    net_income = _to_float(_get(pnl_row, ["Net Profit", "Net profit"]))
+    cfo = _to_float(_get(cf_row, ["Cash from Operating Activity"])) if cf_row else None
 
     required = [
         total_assets, total_liabilities, working_capital,
@@ -340,7 +363,7 @@ def compute_ohlson_o(pnl_row, prior_pnl_row, bs_row, cf_row):
     prior_net_income = None
 
     if prior_pnl_row is not None:
-        prior_net_income = _get(prior_pnl_row, ["Net Profit", "Net profit"])
+        prior_net_income = _to_float(_get(prior_pnl_row, ["Net Profit", "Net profit"]))
 
     oeneg = 1 if total_liabilities > total_assets else 0
 
@@ -403,9 +426,9 @@ def compute_springate_s(pnl_row, bs_row):
     total_assets = _total_assets(bs_row)
     working_capital = _working_capital(bs_row)
     ebit = _ebit(pnl_row)
-    profit_before_tax = _get(pnl_row, ["Profit before tax", "Profit before Tax"])
+    profit_before_tax = _to_float(_get(pnl_row, ["Profit before tax", "Profit before Tax"]))
     current_liabilities = _current_liabilities(bs_row)
-    sales = _get(pnl_row, ["Sales", "Revenue"])
+    sales = _to_float(_get(pnl_row, ["Sales", "Revenue"]))
 
     required = [total_assets, working_capital, ebit, profit_before_tax, current_liabilities, sales]
 
@@ -440,7 +463,7 @@ def compute_zmijewski_x(pnl_row, bs_row):
 
     total_assets = _total_assets(bs_row)
     total_liabilities = _total_liabilities(bs_row)
-    net_income = _get(pnl_row, ["Net Profit", "Net profit"])
+    net_income = _to_float(_get(pnl_row, ["Net Profit", "Net profit"]))
     current_assets = _current_assets(bs_row)
     current_liabilities = _current_liabilities(bs_row)
 
