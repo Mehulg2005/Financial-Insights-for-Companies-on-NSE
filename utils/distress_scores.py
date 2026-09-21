@@ -7,83 +7,60 @@ from utils.features import _get
 # ==================================================
 # CONFIG / DATA-AVAILABILITY DECISIONS
 #
-# These were explicitly confirmed with the team before
-# implementation, not assumed unilaterally. Kept here in
-# one place, same convention as trend_analyzer.py, so
-# anyone reviewing this file can see exactly what's real
+# These were explicitly confirmed with the team before implementation, not assumed unilaterally. Kept here in
+# one place, same convention as trend_analyzer.py, so anyone reviewing this file can see exactly what's real
 # data vs a documented proxy.
 #
 # Current Assets / Current Liabilities:
 #     Total Current Assets      = Other Assets
 #     Total Current Liabilities = Other Liabilities
+
 # This is used everywhere Current Assets/Liabilities appear -
+
 # Altman X1, Piotroski's Current Ratio criterion, Ohlson's
-# WC/TA and CL/CA terms, Springate's A and C terms, and
-# Zmijewski's CA/CL term - since they all share the same
-# helper functions below.
-#
-# Altman X2 (Retained Earnings) is a single-period flow
-# measure, not Altman's original cumulative balance-sheet
+# WC/TA and CL/CA terms, Springate's A and C terms, and Zmijewski's CA/CL term - since they all share the same helper functions below.
+
+# Altman X2 (Retained Earnings) is a single-period flow measure, not Altman's original cumulative balance-sheet
 # definition:
 #     Retained Earnings = Net Profit - (Net Profit * Dividend Payout % / 100)
-# i.e. the portion of this period's profit not paid out as
-# dividends. Flagged as a real methodological deviation from
-# the textbook definition, not just a data-availability
-# proxy. Kept as explicitly instructed.
-#
+# i.e. the portion of this period's profit not paid out as dividends. Flagged as a real methodological deviation from
+# the textbook definition, not just a data-availability proxy. Kept as explicitly instructed.
+
 # Altman X3 (EBIT) / Springate B, shared:
-#     EBIT = Profit before Tax + Interest
-#
-# Altman X4 (Market Value of Equity): shares outstanding is
-# approximated as Net Profit / EPS, multiplied by the latest
+# EBIT = Profit before Tax + Interest
+
+# Altman X4 (Market Value of Equity): shares outstanding is approximated as Net Profit / EPS, multiplied by the latest
 # available closing price.
-#
+
 # FFO (Ohlson) = Cash from Operating Activity
-#
-# Piotroski criterion #8 (Gross Margin YoY) always scores 0 -
-# no reliable Gross Margin data is available (Screener's OPM%
-# is Operating Margin, not Gross Margin, and was explicitly
-# rejected as a substitute).
-#
-# Ohlson's GNP Index term is dropped (ln(Total Assets) is
-# used directly instead of ln(Total Assets / GNP Index)) -
-# the original term is a US-specific 1968-base-year
-# macroeconomic deflator with no Indian-market equivalent.
-#
-# Beneish M-Score is NOT implemented. Both the 8-variable and
-# 5-variable versions depend on Accounts Receivable (DSRI)
-# and true Gross Margin (GMI), neither of which is available
-# or has an agreed-upon proxy. Pending further data-source
-# decisions.
-#
-# TYPE HANDLING: values from the database (psycopg NUMERIC
-# columns) arrive as Python Decimal, while values from the
-# Groww price API arrive as plain float. Python doesn't allow
-# direct arithmetic between the two. _to_float() below is
-# applied at every extraction point in this file so all
-# downstream arithmetic operates on plain floats consistently.
+
+# Piotroski criterion #8 (Gross Margin YoY) always scores 0 - no reliable Gross Margin data is available 
+# (Screener's OPM% is Operating Margin, not Gross Margin, and was explicitly rejected as a substitute).
+
+# Ohlson's GNP Index term is dropped (ln(Total Assets) is used directly instead of ln(Total Assets / GNP Index)) -
+# the original term is a US-specific 1968-base-year macroeconomic deflator with no Indian-market equivalent.
+
+# Beneish M-Score is NOT implemented. Both the 8-variable and 5-variable versions depend on Accounts Receivable (DSRI)
+# and true Gross Margin (GMI), neither of which is available or has an agreed-upon proxy. Pending further data-source decisions.
+
+# TYPE HANDLING: values from the database (psycopg NUMERIC columns) arrive as Python Decimal, while values from the
+# Groww price API arrive as plain float. Python doesn't allow direct arithmetic between the two. _to_float() below is
+# applied at every extraction point in this file so all downstream arithmetic operates on plain floats consistently.
 # ==================================================
 
 
 def _to_float(value):
     """
-    Safely convert a DB-sourced Decimal (or int/float/None)
-    to a plain float, so it can be freely mixed with values
-    from other sources (e.g. the Groww price API) without
-    Python's Decimal/float arithmetic restriction raising a
-    TypeError.
+    Safely convert a DB-sourced Decimal (or int/float/None) to a plain float, so it can be freely mixed with values
+    from other sources (e.g. the Groww price API) without Python's Decimal/float arithmetic restriction raising a TypeError.
     """
-
     if value is None:
         return None
-
     return float(value)
-
 
 def _latest_two_periods(pivoted_rows):
     """
-    Returns (current_row, prior_row) - the two most recent
-    chronological periods. prior_row is None if fewer than
+    Returns (current_row, prior_row) - the two most recent chronological periods. prior_row is None if fewer than
     2 periods are available.
     """
 
@@ -95,7 +72,6 @@ def _latest_two_periods(pivoted_rows):
 
     return pivoted_rows[-1], pivoted_rows[-2]
 
-
 # ==================================================
 # Derived value helpers
 # ==================================================
@@ -103,29 +79,22 @@ def _latest_two_periods(pivoted_rows):
 def _total_assets(bs_row):
     return _to_float(_get(bs_row, ["Total Assets"]))
 
-
 def _total_liabilities(bs_row):
     return _to_float(_get(bs_row, ["Total Liabilities"]))
-
 
 def _current_assets(bs_row):
     """
     Total Current Assets = Other Assets.
     """
-
     return _to_float(_get(bs_row, ["Other Assets"]))
-
 
 def _current_liabilities(bs_row):
     """
     Total Current Liabilities = Other Liabilities.
     """
-
     return _to_float(_get(bs_row, ["Other Liabilities"]))
 
-
 def _working_capital(bs_row):
-
     current_assets = _current_assets(bs_row)
     current_liabilities = _current_liabilities(bs_row)
 
@@ -133,7 +102,6 @@ def _working_capital(bs_row):
         return None
 
     return current_assets - current_liabilities
-
 
 def _ebit(pnl_row):
     """
@@ -149,13 +117,10 @@ def _ebit(pnl_row):
 
     return profit_before_tax + (interest or 0)
 
-
 def _retained_earnings(pnl_row):
     """
-    Retained Earnings = Net Profit - (Net Profit * Dividend
-    Payout % / 100) - the portion of this period's profit
-    retained rather than paid out. See module docstring for
-    the methodological caveat (a single-period flow figure,
+    Retained Earnings = Net Profit - (Net Profit * Dividend Payout % / 100) - the portion of this period's profit
+    retained rather than paid out. See module docstring for the methodological caveat (a single-period flow figure,
     not Altman's original cumulative balance-sheet definition).
     """
 
@@ -166,7 +131,6 @@ def _retained_earnings(pnl_row):
         return None
 
     return net_profit - (net_profit * dividend_payout_percent / 100)
-
 
 def _market_value_of_equity(pnl_row, latest_price):
 
@@ -180,7 +144,6 @@ def _market_value_of_equity(pnl_row, latest_price):
     shares_outstanding = net_profit / eps
 
     return shares_outstanding * latest_price
-
 
 # ==================================================
 # A. Altman Z-Score
@@ -197,8 +160,7 @@ def compute_altman_z(pnl_row, bs_row, latest_price):
     market_value_of_equity = _market_value_of_equity(pnl_row, latest_price)
 
     required = [
-        total_assets, total_liabilities, working_capital,
-        ebit, sales, retained_earnings, market_value_of_equity
+        total_assets, total_liabilities, working_capital, ebit, sales, retained_earnings, market_value_of_equity
     ]
 
     if (
@@ -228,7 +190,6 @@ def compute_altman_z(pnl_row, bs_row, latest_price):
         zone = "Distress Zone"
 
     return {"score": round(z, 2), "zone": zone, "note": None}
-
 
 # ==================================================
 # B. Piotroski F-Score
@@ -266,8 +227,7 @@ def compute_piotroski_f(pnl_row, prior_pnl_row, bs_row, prior_bs_row, cf_row):
         points += 1
 
     # 5. Long-term debt ratio decreased YoY (total Borrowings/
-    #    Total Assets used as proxy - Screener doesn't split
-    #    long-term vs short-term debt)
+    #    Total Assets used as proxy - Screener doesn't split long-term vs short-term debt)
     borrowings = _to_float(_get(bs_row, ["Borrowings"]))
     prior_borrowings = _to_float(_get(prior_bs_row, ["Borrowings"]))
     prior_total_assets = _total_assets(prior_bs_row)
@@ -300,8 +260,7 @@ def compute_piotroski_f(pnl_row, prior_pnl_row, bs_row, prior_bs_row, cf_row):
         if equity_capital <= prior_equity_capital:
             points += 1
 
-    # 8. Gross Margin increased YoY - always 0, confirmed
-    #    decision, no reliable Gross Margin data available.
+    # 8. Gross Margin increased YoY - always 0, confirmed decision, no reliable Gross Margin data available.
 
     # 9. Asset Turnover increased YoY
     sales = _to_float(_get(pnl_row, ["Sales", "Revenue"]))
@@ -334,7 +293,6 @@ def compute_piotroski_f(pnl_row, prior_pnl_row, bs_row, prior_bs_row, cf_row):
 # ==================================================
 
 def compute_ohlson_o(pnl_row, prior_pnl_row, bs_row, cf_row):
-
     total_assets = _total_assets(bs_row)
     total_liabilities = _total_liabilities(bs_row)
     working_capital = _working_capital(bs_row)
@@ -344,8 +302,7 @@ def compute_ohlson_o(pnl_row, prior_pnl_row, bs_row, cf_row):
     cfo = _to_float(_get(cf_row, ["Cash from Operating Activity"])) if cf_row else None
 
     required = [
-        total_assets, total_liabilities, working_capital,
-        current_assets, current_liabilities, net_income, cfo
+        total_assets, total_liabilities, working_capital, current_assets, current_liabilities, net_income, cfo
     ]
 
     if (
@@ -376,14 +333,12 @@ def compute_ohlson_o(pnl_row, prior_pnl_row, bs_row, cf_row):
     chin = 0
 
     if net_income is not None and prior_net_income is not None:
-
         denominator = abs(net_income) + abs(prior_net_income)
 
         if denominator:
             chin = (net_income - prior_net_income) / denominator
 
     try:
-
         t_score = (
             -1.32
             - 0.407 * math.log(total_assets)
@@ -422,7 +377,6 @@ def compute_ohlson_o(pnl_row, prior_pnl_row, bs_row, cf_row):
 # ==================================================
 
 def compute_springate_s(pnl_row, bs_row):
-
     total_assets = _total_assets(bs_row)
     working_capital = _working_capital(bs_row)
     ebit = _ebit(pnl_row)
@@ -497,7 +451,6 @@ def compute_zmijewski_x(pnl_row, bs_row):
 # ==================================================
 
 def build_distress_scores(profit_loss_records, balance_sheet_records, cash_flow_records, latest_price):
-
     pnl_pivoted = pivot_by_period(profit_loss_records)
     bs_pivoted = pivot_by_period(balance_sheet_records)
     cf_pivoted = pivot_by_period(cash_flow_records)
@@ -513,9 +466,7 @@ def build_distress_scores(profit_loss_records, balance_sheet_records, cash_flow_
     }
 
     if pnl_row is None or bs_row is None:
-
         empty_note = "Insufficient data to compute distress scores."
-
         return {
             "altman_z": {"score": None, "zone": None, "note": empty_note},
             "piotroski_f": {"score": None, "max_score": 9, "note": empty_note},
