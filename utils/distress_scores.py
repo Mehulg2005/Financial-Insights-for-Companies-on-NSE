@@ -13,23 +13,32 @@ from utils.features import _get
 # anyone reviewing this file can see exactly what's real
 # data vs a documented proxy.
 #
-# Current Assets / Current Liabilities fallback (used when
-# Screener doesn't expose them directly for a company):
-#     Current Assets      = Total Assets - Fixed Assets - Other Assets
-#     Current Liabilities = Total Liabilities - Other Liabilities
-# NOTE: algebraically this simplifies to
-#     Current Assets      = CWIP + Investments
-#     Current Liabilities = Equity Capital + Reserves + Borrowings
-# which is unconventional (equity counted within "current
-# liabilities"). Flagged during review; kept as specified.
+# Current Assets / Current Liabilities:
+#     Total Current Assets      = Other Assets
+#     Total Current Liabilities = Other Liabilities
+# This is used everywhere Current Assets/Liabilities appear -
+# Altman X1, Piotroski's Current Ratio criterion, Ohlson's
+# WC/TA and CL/CA terms, Springate's A and C terms, and
+# Zmijewski's CA/CL term - since they all share the same
+# helper functions below.
+#
+# Altman X2 (Retained Earnings) is a single-period flow
+# measure, not Altman's original cumulative balance-sheet
+# definition:
+#     Retained Earnings = Net Profit - (Net Profit * Dividend Payout % / 100)
+# i.e. the portion of this period's profit not paid out as
+# dividends. Flagged as a real methodological deviation from
+# the textbook definition, not just a data-availability
+# proxy. Kept as explicitly instructed.
+#
+# Altman X3 (EBIT) / Springate B, shared:
+#     EBIT = Profit before Tax + Interest
 #
 # Altman X4 (Market Value of Equity): shares outstanding is
 # approximated as Net Profit / EPS, multiplied by the latest
 # available closing price.
 #
-# Retained Earnings (Altman X2)      = Reserves
-# EBIT (Altman X3, Springate B)      = Operating Profit + Other Income
-# FFO (Ohlson)                       = Cash from Operating Activity
+# FFO (Ohlson) = Cash from Operating Activity
 #
 # Piotroski criterion #8 (Gross Margin YoY) always scores 0 -
 # no reliable Gross Margin data is available (Screener's OPM%
@@ -78,26 +87,19 @@ def _total_liabilities(bs_row):
 
 
 def _current_assets(bs_row):
+    """
+    Total Current Assets = Other Assets.
+    """
 
-    total_assets = _get(bs_row, ["Total Assets"])
-    fixed_assets = _get(bs_row, ["Fixed Assets"])
-    other_assets = _get(bs_row, ["Other Assets"])
-
-    if None in (total_assets, fixed_assets, other_assets):
-        return None
-
-    return total_assets - fixed_assets - other_assets
+    return _get(bs_row, ["Other Assets"])
 
 
 def _current_liabilities(bs_row):
+    """
+    Total Current Liabilities = Other Liabilities.
+    """
 
-    total_liabilities = _get(bs_row, ["Total Liabilities"])
-    other_liabilities = _get(bs_row, ["Other Liabilities"])
-
-    if None in (total_liabilities, other_liabilities):
-        return None
-
-    return total_liabilities - other_liabilities
+    return _get(bs_row, ["Other Liabilities"])
 
 
 def _working_capital(bs_row):
@@ -112,14 +114,36 @@ def _working_capital(bs_row):
 
 
 def _ebit(pnl_row):
+    """
+    EBIT = Profit before Tax + Interest. Shared by Altman X3
+    and Springate B.
+    """
 
-    operating_profit = _get(pnl_row, ["Operating Profit"])
-    other_income = _get(pnl_row, ["Other Income"])
+    profit_before_tax = _get(pnl_row, ["Profit before tax", "Profit before Tax"])
+    interest = _get(pnl_row, ["Interest"])
 
-    if operating_profit is None:
+    if profit_before_tax is None:
         return None
 
-    return operating_profit + (other_income or 0)
+    return profit_before_tax + (interest or 0)
+
+
+def _retained_earnings(pnl_row):
+    """
+    Retained Earnings = Net Profit - (Net Profit * Dividend
+    Payout % / 100) - the portion of this period's profit
+    retained rather than paid out. See module docstring for
+    the methodological caveat (a single-period flow figure,
+    not Altman's original cumulative balance-sheet definition).
+    """
+
+    net_profit = _get(pnl_row, ["Net Profit", "Net profit"])
+    dividend_payout_percent = _get(pnl_row, ["Dividend Payout %"])
+
+    if net_profit is None or dividend_payout_percent is None:
+        return None
+
+    return net_profit - (net_profit * dividend_payout_percent / 100)
 
 
 def _market_value_of_equity(pnl_row, latest_price):
@@ -146,12 +170,12 @@ def compute_altman_z(pnl_row, bs_row, latest_price):
     working_capital = _working_capital(bs_row)
     ebit = _ebit(pnl_row)
     sales = _get(pnl_row, ["Sales", "Revenue"])
-    reserves = _get(bs_row, ["Reserves"])
+    retained_earnings = _retained_earnings(pnl_row)
     market_value_of_equity = _market_value_of_equity(pnl_row, latest_price)
 
     required = [
         total_assets, total_liabilities, working_capital,
-        ebit, sales, reserves, market_value_of_equity
+        ebit, sales, retained_earnings, market_value_of_equity
     ]
 
     if (
@@ -166,7 +190,7 @@ def compute_altman_z(pnl_row, bs_row, latest_price):
         }
 
     x1 = working_capital / total_assets
-    x2 = reserves / total_assets
+    x2 = retained_earnings / total_assets
     x3 = ebit / total_assets
     x4 = market_value_of_equity / total_liabilities
     x5 = sales / total_assets
