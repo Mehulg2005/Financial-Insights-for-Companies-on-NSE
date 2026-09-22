@@ -96,56 +96,85 @@ const DISTRESS_SCORE_DISPLAY = {
     altman_z: {
         label: "Altman Z",
         format: data => data.score !== null && data.score !== undefined ? `${data.score}` : "—",
-        subtext: data => data.zone || data.note || "",
     },
     piotroski_f: {
         label: "Piotroski F",
         format: data => data.score !== null && data.score !== undefined ? `${data.score}/${data.max_score}` : "—",
-        subtext: data => data.band || data.note || "",
     },
     beneish_m: {
         label: "Beneish M",
         format: () => "—",
-        subtext: data => data.note || "Pending",
     },
     ohlson_o: {
         label: "Ohlson O",
         format: data => data.probability !== null && data.probability !== undefined ? `${(data.probability * 100).toFixed(1)}%` : "—",
-        subtext: data => data.risk || data.note || "",
     },
     springate_s: {
         label: "Springate S",
         format: data => data.score !== null && data.score !== undefined ? `${data.score}` : "—",
-        subtext: data => data.verdict || data.note || "",
     },
     zmijewski_x: {
         label: "Zmijewski X",
         format: data => data.score !== null && data.score !== undefined ? `${data.score}` : "—",
-        subtext: data => data.verdict || data.note || "",
     },
 };
 
 
-function buildDistressScoreChip(label, valueText, subtext) {
+const DISTRESS_SCORE_THEORY = {
+
+    altman_z: "The Altman Z-score is a financial formula developed in 1968 by NYU professor Edward Altman to predict the probability that a company will go bankrupt within two years. By combining five key business ratios measuring liquidity, profitability, and leverage, it assesses a firm's overall financial health.\n\nA score above 2.99 places a company in the Safe Zone, while a score below 1.81 indicates the Distress Zone, signaling a high risk of failure. Scores between 1.81 and 2.99 fall into the Grey Zone, meaning the company's financial future is uncertain.",
+
+    piotroski_f: "The Piotroski F-Score is a financial metric developed in 2000 by accounting professor Joseph Piotroski to evaluate the financial strength of value stocks. By combining nine binary criteria measuring profitability, leverage, and operating efficiency, it assesses whether a company's financial position is improving or worsening.\n\nA score of 8 to 9 places a company in the Strong Zone, indicating high quality and positive momentum. Scores of 0 to 3 indicate the Weak Zone, signaling poor financial health and high risk, while scores between 4 and 7 reflect an average baseline.",
+
+    beneish_m: "The Beneish M-Score is a mathematical model developed in 1999 by Professor Messod Beneish to predict the probability that a company has manipulated its earnings. By combining eight financial ratios tracking anomalies in revenue, asset depreciation, and leverage, it uncovers aggressive accounting practices.\n\nA score above -1.78 (e.g., -1.50) places a company in the Distress Zone, signaling a high likelihood of financial manipulation. Conversely, a score below -1.78 (e.g., -2.50) indicates the Safe Zone, meaning the company is unlikely to be an earnings manipulator.",
+
+    ohlson_o: "The Ohlson O-Score is a probabilistic model developed in 1980 by Dr. James Ohlson to estimate the likelihood of a company entering bankruptcy within one year. By combining nine financial factors - including size, total liabilities, net income, and working capital - it utilizes logistic regression to output a direct default probability.\n\nA score above 0.5 (corresponding to a high statistical probability) places a company in the Distress Zone, indicating a severe risk of default. A score below 0.5 represents the Safe Zone, where the company exhibits standard financial stability.",
+
+    springate_s: "The Springate S-Score is a bankruptcy prediction model developed in 1978 by Gordon Springate at Simon Fraser University, building upon the foundations of the Altman Z-score. By combining four key financial ratios that measure working capital efficiency, profitability before interest and taxes, and asset utilization, it determines insolvency risks.\n\nA score below 0.862 places a company in the Distress Zone, flagging the firm as a high-risk candidate for failure. A score above 0.862 places the firm in the Safe Zone, indicating an acceptable standard of financial health.",
+
+    zmijewski_x: "The Zmijewski X-Score is a financial distress model developed in 1984 by Kent Zmijewski to evaluate the probability of a company facing bankruptcy. By combining three core financial metrics that analyze return on assets, leverage, and liquidity, it provides a streamlined assessment of corporate solvency.\n\nA score above 0 (reflecting a predicted probability of bankruptcy greater than 50%) places a company in the Distress Zone, signaling imminent financial trouble. A score below 0 places it in the Safe Zone, indicating the firm is financially sound.",
+
+};
+
+
+function buildDistressScoreChip(key, config, scoreData) {
+
+    const severity = scoreData.severity || null;
+    const severityClass = severity ? `score-chip-${severity}` : "";
 
     const chip = document.createElement("div");
-    chip.className = "bg-surface-raised border border-border rounded-xl p-3";
+    chip.className = `score-chip relative bg-surface-raised border border-border rounded-xl p-3 ${severityClass}`;
 
     const labelEl = document.createElement("div");
     labelEl.className = "font-mono text-[10px] uppercase tracking-widest text-text-muted mb-1";
-    labelEl.textContent = label;
+    labelEl.textContent = config.label;
 
     const valueEl = document.createElement("div");
-    valueEl.className = "font-mono text-lg font-semibold text-text-high";
-    valueEl.textContent = valueText;
-
-    const subtextEl = document.createElement("div");
-    subtextEl.className = "font-mono text-[10px] text-text-muted mt-0.5";
-    subtextEl.textContent = subtext;
+    valueEl.className = "score-chip-value font-mono text-lg font-semibold text-text-high";
+    valueEl.textContent = config.format(scoreData);
 
     chip.appendChild(labelEl);
     chip.appendChild(valueEl);
-    chip.appendChild(subtextEl);
+
+    if (scoreData.note) {
+
+        const noteEl = document.createElement("div");
+        noteEl.className = "font-mono text-[10px] text-text-muted mt-0.5";
+        noteEl.textContent = scoreData.note;
+        chip.appendChild(noteEl);
+
+    }
+
+    const theoryText = DISTRESS_SCORE_THEORY[key];
+
+    if (theoryText) {
+
+        const tooltip = document.createElement("div");
+        tooltip.className = "score-chip-tooltip";
+        tooltip.textContent = theoryText;
+        chip.appendChild(tooltip);
+
+    }
 
     return chip;
 
@@ -162,8 +191,12 @@ function renderDistressScorePlaceholders() {
 
     container.innerHTML = "";
 
-    Object.values(DISTRESS_SCORE_DISPLAY).forEach(config => {
-        container.appendChild(buildDistressScoreChip(config.label, "—", "Pending"));
+    Object.keys(DISTRESS_SCORE_DISPLAY).forEach(key => {
+
+        const config = DISTRESS_SCORE_DISPLAY[key];
+
+        container.appendChild(buildDistressScoreChip(key, config, { note: "Pending" }));
+
     });
 
 }
@@ -184,9 +217,7 @@ function renderDistressScores(scores) {
         const config = DISTRESS_SCORE_DISPLAY[key];
         const scoreData = scores[key] || {};
 
-        container.appendChild(
-            buildDistressScoreChip(config.label, config.format(scoreData), config.subtext(scoreData))
-        );
+        container.appendChild(buildDistressScoreChip(key, config, scoreData));
 
     });
 
