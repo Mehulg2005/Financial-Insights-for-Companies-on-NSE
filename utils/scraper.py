@@ -236,7 +236,7 @@ def extract_table(section_id):
             return result;
         }
 
-        function parsePayload(payload) {
+        function parsePayload(payload, periods) {
             if (!payload) {
                 return [];
             }
@@ -253,11 +253,47 @@ def extract_table(section_id):
                 return payload.rows;
             }
 
+            if (
+                typeof payload === "object"
+                && !Array.isArray(payload)
+            ) {
+                return Object.entries(payload).map(
+                    ([metric, valuesByPeriod]) => {
+                        const values = periods.map(
+                            period => valuesByPeriod[period] ?? ""
+                        );
+
+                        return [
+                            metric,
+                            ...values
+                        ];
+                    }
+                );
+            }
+
             return [];
         }
 
         async function loadSchedules() {
             const companyId = findCompanyId();
+            const mainTable = document.querySelector(
+                `#${sectionId} table.data-table`
+            );
+
+            if (!mainTable) {
+                throw new Error(
+                    `Could not find table for section ${sectionId}.`
+                );
+            }
+
+            const headerCells = mainTable.querySelectorAll(
+                "thead th, tr:first-child th, tr:first-child td"
+            );
+
+            const periods = Array.from(headerCells)
+                .map(cell => cell.textContent.trim())
+                .filter(value => value.length > 0)
+                .slice(1);
 
             if (!companyId) {
                 throw new Error(
@@ -291,7 +327,10 @@ def extract_table(section_id):
                 }
 
                 const payload = await response.json();
-                const rows = parsePayload(payload);
+                const rows = parsePayload(
+                    payload,
+                    periods
+                );
 
                 result.push(...rows);
             }
