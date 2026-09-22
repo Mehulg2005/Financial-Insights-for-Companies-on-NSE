@@ -65,7 +65,26 @@ def _to_float(value):
     return float(value)
 
 
+def _exclude_ttm(pivoted_rows):
+    """
+    Screener's P&L includes a trailing "TTM" (trailing
+    twelve months) row alongside discrete fiscal-year
+    periods. TTM is a rolling aggregate, not a fiscal period
+    - it doesn't consistently carry every metric (e.g.
+    Dividend Payout % is often absent for it), and it only
+    appears in P&L, not Balance Sheet or Cash Flow. Left in,
+    it risks picking a "latest" P&L period that doesn't
+    correspond to the same fiscal period as the "latest"
+    Balance Sheet/Cash Flow row. Excluded here so all three
+    statements select from genuine, aligned fiscal year-ends.
+    """
+
+    return [row for row in pivoted_rows if row.get("period") != "TTM"]
+
+
 def _latest_two_periods(pivoted_rows):
+
+    pivoted_rows = _exclude_ttm(pivoted_rows)
 
     if not pivoted_rows:
         return None, None
