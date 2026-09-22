@@ -8,7 +8,8 @@ def clean_metric(metric):
 
     Examples:
         'Sales +'        -> 'Sales'
-        'Equity Capital' -> 'Equity Capital'
+        'Sales -'        -> 'Sales'
+        'Other Assets -' -> 'Other Assets'
     """
 
     if metric is None:
@@ -16,12 +17,10 @@ def clean_metric(metric):
 
     metric = " ".join(metric.split())
 
-    # Remove Screener's '+' indicator
-    if metric.endswith("+"):
+    while metric.endswith(("+", "-")):
         metric = metric[:-1].strip()
 
     return metric
-
 
 def parse_number(value):
     """

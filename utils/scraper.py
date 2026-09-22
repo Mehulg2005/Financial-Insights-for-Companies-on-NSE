@@ -4,6 +4,8 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+import json
+
 
 # ==================================================
 # Screener URLs
@@ -111,7 +113,8 @@ def start_selenium():
 
 def extract_table(section_id):
     """
-    Extract the main data table from a Screener section.
+    Extract a Screener statement table and fetch hidden schedule
+    rows through Screener's schedule API.
     """
 
     global driver
@@ -120,17 +123,15 @@ def extract_table(section_id):
         start_selenium()
 
     try:
-
         section = driver.find_element(
             By.ID,
             section_id
         )
 
-    except Exception as e:
-
+    except Exception as error:
         raise ValueError(
             f"Section '{section_id}' was not found."
-        ) from e
+        ) from error
 
     tables = section.find_elements(
         By.CSS_SELECTOR,
@@ -138,29 +139,11 @@ def extract_table(section_id):
     )
 
     if not tables:
-
         raise ValueError(
-            f"No data table found inside "
-            f"section '{section_id}'."
+            f"No data table found inside section '{section_id}'."
         )
 
     table = tables[0]
-
-    # Expand Screener rows such as Expenses and Other Assets
-    # so nested metrics are included in the extracted table.
-    expand_buttons = section.find_elements(
-        By.XPATH,
-        ".//button[contains(normalize-space(), '+')]"
-    )
-
-    for button in expand_buttons:
-        try:
-            driver.execute_script(
-                "arguments[0].click();",
-                button
-            )
-        except Exception:
-            continue
 
     rows = table.find_elements(
         By.TAG_NAME,
@@ -170,7 +153,6 @@ def extract_table(section_id):
     data = []
 
     for row in rows:
-
         cells = row.find_elements(
             By.CSS_SELECTOR,
             "th, td"
@@ -185,11 +167,191 @@ def extract_table(section_id):
             data.append(row_data)
 
     if not data:
+        raise ValueError(
+            f"No data found inside section '{section_id}'."
+        )
+
+    schedule_parents = {
+        "profit-loss": [
+            "Expenses",
+        ],
+        "balance-sheet": [
+            "Other Assets",
+        ],
+    }
+
+    parents = schedule_parents.get(
+        section_id,
+        []
+    )
+
+    if not parents:
+        return data
+
+    schedule_result = driver.execute_async_script(
+        """
+        const sectionId = arguments[0];
+        const parents = arguments[1];
+        const done = arguments[arguments.length - 1];
+
+        function findCompanyId() {
+            const html = document.documentElement.innerHTML;
+
+            const patterns = [
+                /\\/company\\/actions\\/(\\d+)/,
+                /\\/api\\/company\\/(\\d+)/,
+                /company[_-]?id[^0-9]+(\\d+)/i
+            ];
+
+            for (const pattern of patterns) {
+                const match = html.match(pattern);
+
+                if (match) {
+                    return match[1];
+                }
+            }
+
+            return null;
+        }
+
+        function parseRows(html) {
+            const wrapper = document.createElement("div");
+            wrapper.innerHTML = html;
+
+            const rows = wrapper.querySelectorAll("tr");
+            const result = [];
+
+            rows.forEach(row => {
+                const cells = row.querySelectorAll("th, td");
+
+                const rowData = Array.from(cells).map(
+                    cell => cell.textContent.trim()
+                );
+
+                if (rowData.some(value => value.length > 0)) {
+                    result.push(rowData);
+                }
+            });
+
+            return result;
+        }
+
+        function parsePayload(payload) {
+            if (!payload) {
+                return [];
+            }
+
+            if (typeof payload === "string") {
+                return parseRows(payload);
+            }
+
+            if (typeof payload.html === "string") {
+                return parseRows(payload.html);
+            }
+
+            if (Array.isArray(payload.rows)) {
+                return payload.rows;
+            }
+
+            return [];
+        }
+
+        async function loadSchedules() {
+            const companyId = findCompanyId();
+
+            if (!companyId) {
+                throw new Error(
+                    "Could not find Screener company ID."
+                );
+            }
+
+            const result = [];
+
+            for (const parent of parents) {
+                const params = new URLSearchParams({
+                    parent: parent,
+                    section: sectionId,
+                    consolidated: ""
+                });
+
+                const response = await fetch(
+                    `/api/company/${companyId}/schedules/?${params.toString()}`,
+                    {
+                        credentials: "same-origin",
+                        headers: {
+                            "X-Requested-With": "XMLHttpRequest"
+                        }
+                    }
+                );
+
+                if (!response.ok) {
+                    throw new Error(
+                        `Schedule request failed for ${parent}: ${response.status}`
+                    );
+                }
+
+                const payload = await response.json();
+                const rows = parsePayload(payload);
+
+                result.push(...rows);
+            }
+
+            return result;
+        }
+
+        loadSchedules()
+            .then(rows => {
+                done({
+                    ok: true,
+                    rows: rows
+                });
+            })
+            .catch(error => {
+                done({
+                    ok: false,
+                    error: error.message
+                });
+            });
+        """,
+        section_id,
+        parents
+    )
+
+    if not schedule_result or not schedule_result.get("ok"):
+        error_message = (
+            schedule_result.get("error")
+            if schedule_result
+            else "Unknown schedule API error"
+        )
 
         raise ValueError(
-            f"No data found inside "
-            f"section '{section_id}'."
+            f"Could not load Screener schedule rows for "
+            f"section '{section_id}': {error_message}"
         )
+
+    child_rows = schedule_result.get(
+        "rows",
+        []
+    )
+
+    existing_metrics = {
+        row[0].strip().lower()
+        for row in data[1:]
+        if row and row[0].strip()
+    }
+
+    for child_row in child_rows:
+        if not child_row:
+            continue
+
+        metric_name = child_row[0].strip().lower()
+
+        if not metric_name:
+            continue
+
+        if metric_name not in existing_metrics:
+            data.append(child_row)
+            existing_metrics.add(metric_name)
 
     return data
 
