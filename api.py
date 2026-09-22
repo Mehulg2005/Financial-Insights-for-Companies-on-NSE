@@ -124,6 +124,18 @@ def fundamentals_page(request: Request, nse_code: str):
             "price_tracker_mode": "none",
         }
     )
+@app.get("/{nse_code}/market")
+def market_page(request: Request, nse_code: str):
+
+    return templates.TemplateResponse(
+        request,
+        "market.html",
+        {
+            "nse_code": nse_code.upper(),
+            "active_page": "market",
+            "price_tracker_mode": "full",
+        }
+    )
 # ==================================================
 # Routers
 # ==================================================
