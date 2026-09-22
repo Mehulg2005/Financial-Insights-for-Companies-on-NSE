@@ -217,7 +217,13 @@ function renderDistressScorePlaceholders() {
 
         const config = DISTRESS_SCORE_DISPLAY[key];
 
-        container.appendChild(buildDistressScoreChip(key, config, { note: "Pending" }));
+        container.appendChild(
+            buildDistressScoreChip(
+                key,
+                config,
+                { note: "Not Available" }
+            )
+        );
 
     });
 
