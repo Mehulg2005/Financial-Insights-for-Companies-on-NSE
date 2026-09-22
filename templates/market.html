@@ -25,4 +25,40 @@
 
 </section>
 
+<section class="bg-surface border border-border rounded-2xl p-5 mt-4">
+
+    <div class="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+            <div class="font-mono text-[11px] uppercase tracking-widest text-primary mb-2">
+                Screener Documents
+            </div>
+
+            <h2 class="font-display font-semibold text-lg">
+                Latest Concall Summaries
+            </h2>
+        </div>
+
+        <span
+            id="concallStatus"
+            class="font-mono text-xs text-text-muted"
+        >
+            Loading...
+        </span>
+    </div>
+
+    <div
+        id="concallSummaries"
+        class="grid gap-3 mt-5"
+    >
+        <p class="text-text-medium text-sm">
+            Loading summaries from Screener...
+        </p>
+    </div>
+
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/market.js"></script>
 {% endblock %}

@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.templating import Jinja2Templates
-
+from routes.concalls import router as concalls_router
 from contextlib import asynccontextmanager
 
 from utils.scraper import close_selenium
@@ -148,3 +148,4 @@ app.include_router(cash_flow_router)
 app.include_router(features_router)
 app.include_router(price_router)
 app.include_router(distress_router)
+app.include_router(concalls_router)

@@ -4,6 +4,8 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+import re
+
 
 # ==================================================
 # Screener URLs
@@ -15,6 +17,9 @@ SCREENER_COMPANY_URL = (
     "https://www.screener.in/company/{}/"
 )
 
+SCREENER_COMPANY_URL = (
+    "https://www.screener.in/company/{}/consolidated/"
+)
 
 # ==================================================
 # Selenium driver
@@ -625,6 +630,235 @@ def scrape_company(nse_code):
         "cash_flow": cash_flow,
     }
 
+# ==================================================
+# Concall summaries
+# ==================================================
+
+
+def _concall_period(element):
+    """
+    Extract the month/year associated with a concall document element.
+    """
+
+    try:
+        return driver.execute_script(
+            """
+            const element = arguments[0];
+            let node = element;
+
+            for (let i = 0; i < 8 && node; i += 1) {
+                const text = (
+                    node.innerText ||
+                    node.textContent ||
+                    ""
+                ).trim();
+
+                if (text) {
+                    const match = text.match(
+                        /\\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s+\\d{4}\\b/
+                    );
+
+                    if (match) {
+                        return match[0];
+                    }
+                }
+
+                node = node.parentElement;
+            }
+
+            return "";
+            """,
+            element,
+        )
+
+    except Exception:
+        return ""
+
+
+def _concall_content():
+    """
+    Extract the authenticated concall-summary page content.
+    """
+
+    selectors = (
+        "article",
+        ".concalls-summary",
+        "[class*='summary']",
+        "#content",
+        "main",
+        ".card",
+    )
+
+    candidates = []
+    seen_text = set()
+
+    for selector in selectors:
+        elements = driver.find_elements(
+            By.CSS_SELECTOR,
+            selector,
+        )
+
+        for element in elements:
+            text = element.text.strip()
+
+            if text and text not in seen_text:
+                seen_text.add(text)
+                candidates.append(text)
+
+    if candidates:
+        return max(candidates, key=len)
+
+    return driver.find_element(
+        By.TAG_NAME,
+        "body",
+    ).text.strip()
+
+
+def fetch_latest_concall_summaries(nse_code, limit=6):
+    """
+    Fetch the latest available Screener concall summaries.
+
+    Data is returned in memory only.
+    Nothing is stored in PostgreSQL.
+    """
+
+    if limit <= 0:
+        return []
+
+    global driver
+
+    if driver is None:
+        start_selenium()
+
+    nse_code = nse_code.upper().strip()
+
+    company_url = SCREENER_COMPANY_URL.format(nse_code)
+    wait = WebDriverWait(driver, 20)
+
+    try:
+        driver.get(company_url)
+
+        wait.until(
+            EC.presence_of_element_located(
+                (By.TAG_NAME, "body")
+            )
+        )
+
+        if "/login/" in driver.current_url:
+            raise ValueError(
+                "Screener login is required to access concall summaries."
+            )
+
+        # Give Screener's Documents section time to finish loading.
+        wait.until(
+            lambda current_driver: current_driver.execute_script(
+                """
+                return document.querySelectorAll(
+                    'a[href*="/concalls/summary/"], \
+                     [data-href*="/concalls/summary/"], \
+                     [data-url*="/concalls/summary/"]'
+                ).length > 0;
+                """
+            )
+        )
+
+        link_metadata = []
+        seen_ids = set()
+
+        # Screener normally uses href, but also inspect data-href and data-url.
+        elements = driver.find_elements(
+            By.CSS_SELECTOR,
+            """
+            a[href*="/concalls/summary/"],
+            [data-href*="/concalls/summary/"],
+            [data-url*="/concalls/summary/"]
+            """,
+        )
+
+        for element in elements:
+            href = (
+                element.get_attribute("href")
+                or element.get_attribute("data-href")
+                or element.get_attribute("data-url")
+                or ""
+            )
+
+            match = re.search(
+                r"/concalls/summary/(\d+)",
+                href,
+            )
+
+            if not match:
+                continue
+
+            summary_id = match.group(1)
+
+            if summary_id in seen_ids:
+                continue
+
+            seen_ids.add(summary_id)
+
+            link_metadata.append(
+                {
+                    "id": summary_id,
+                    "period": _concall_period(element) or "Concall",
+                }
+            )
+
+            # Screener displays the documents newest first.
+            if len(link_metadata) >= limit:
+                break
+
+        if not link_metadata:
+            raise ValueError(
+                "No concall summary links were found on Screener. "
+                "Confirm that the logged-in account can access Documents "
+                "and that the company has available AI summaries."
+            )
+
+        summaries = []
+
+        for metadata in link_metadata:
+            summary_id = metadata["id"]
+
+            summary_url = SCREENER_CONCALL_SUMMARY_URL.format(
+                summary_id
+            )
+
+            driver.get(summary_url)
+
+            wait.until(
+                EC.presence_of_element_located(
+                    (By.TAG_NAME, "body")
+                )
+            )
+
+            if "/login/" in driver.current_url:
+                raise ValueError(
+                    "Screener login is required to access concall summaries."
+                )
+
+            content = _concall_content()
+
+            if not content:
+                continue
+
+            summaries.append(
+                {
+                    "id": summary_id,
+                    "period": metadata["period"],
+                    "url": summary_url,
+                    "content": content,
+                }
+            )
+
+        return summaries
+
+    finally:
+        try:
+            driver.get(company_url)
+        except Exception:
+            pass
 
 # ==================================================
 # Close Selenium
