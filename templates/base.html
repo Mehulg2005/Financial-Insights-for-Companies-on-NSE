@@ -151,7 +151,38 @@
             white-space: pre-line;
         }
 
-        .score-chip:hover .score-chip-tooltip {
+        .score-chip {
+            overflow: visible;
+        }
+
+        .score-chip-positive {
+            border-color: rgba(16, 185, 129, 0.4) !important;
+            background-color: #0F291E !important;
+        }
+
+        .score-chip-positive .score-chip-value {
+            color: #10B981 !important;
+        }
+
+        .score-chip-negative {
+            border-color: rgba(255, 87, 34, 0.4) !important;
+            background-color: #2C1714 !important;
+        }
+
+        .score-chip-negative .score-chip-value {
+            color: #FF5722 !important;
+        }
+
+        .score-chip-mixed {
+            border-color: rgba(245, 158, 11, 0.4) !important;
+            background-color: #232018 !important;
+        }
+
+        .score-chip-mixed .score-chip-value {
+            color: #F59E0B !important;
+        }
+
+        .score-chip:hover > .score-chip-tooltip {
             display: block;
         }
 

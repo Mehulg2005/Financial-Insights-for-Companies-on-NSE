@@ -146,11 +146,19 @@ const SEVERITY_COLORS = {
 
 function buildDistressScoreChip(key, config, scoreData) {
 
-    const severity = scoreData.severity || null;
-    const colors = SEVERITY_COLORS[severity];
+    const severity = String(scoreData.severity || "").toLowerCase();
+    const colors = SEVERITY_COLORS[severity] || null;
 
     const chip = document.createElement("div");
-    chip.className = "relative border rounded-xl p-3";
+    chip.className = [
+        "score-chip",
+        "relative",
+        "border",
+        "rounded-xl",
+        "p-3",
+        severity ? `score-chip-${severity}` : "",
+    ].filter(Boolean).join(" ");
+
     chip.style.backgroundColor = colors ? colors.background : "#1C1C1F";
     chip.style.borderColor = colors ? colors.border : "#28282C";
 
@@ -159,7 +167,7 @@ function buildDistressScoreChip(key, config, scoreData) {
     labelEl.textContent = config.label;
 
     const valueEl = document.createElement("div");
-    valueEl.className = "font-mono text-lg font-semibold";
+    valueEl.className = "score-chip-value font-mono text-lg font-semibold";
     valueEl.style.color = colors ? colors.text : "#FFFFFF";
     valueEl.textContent = config.format(scoreData);
 
@@ -180,37 +188,10 @@ function buildDistressScoreChip(key, config, scoreData) {
     if (theoryText) {
 
         const tooltip = document.createElement("div");
+        tooltip.className = "score-chip-tooltip";
         tooltip.textContent = theoryText;
 
-        tooltip.style.cssText = `
-            display: none;
-            position: absolute;
-            z-index: 50;
-            bottom: calc(100% + 8px);
-            left: 50%;
-            transform: translateX(-50%);
-            width: 280px;
-            background-color: #1C1C1F;
-            border: 1px solid #28282C;
-            border-radius: 10px;
-            padding: 12px 14px;
-            font-family: 'Manrope', sans-serif;
-            font-size: 12px;
-            line-height: 1.5;
-            color: #8E8E93;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-            white-space: pre-line;
-        `;
-
         chip.appendChild(tooltip);
-
-        chip.addEventListener("mouseenter", () => {
-            tooltip.style.display = "block";
-        });
-
-        chip.addEventListener("mouseleave", () => {
-            tooltip.style.display = "none";
-        });
 
     }
 
