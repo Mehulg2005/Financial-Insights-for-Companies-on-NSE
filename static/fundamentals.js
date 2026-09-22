@@ -150,7 +150,7 @@ function buildDistressScoreChip(key, config, scoreData) {
     const colors = SEVERITY_COLORS[severity];
 
     const chip = document.createElement("div");
-    chip.className = "score-chip relative border rounded-xl p-3";
+    chip.className = "relative border rounded-xl p-3";
     chip.style.backgroundColor = colors ? colors.background : "#1C1C1F";
     chip.style.borderColor = colors ? colors.border : "#28282C";
 
@@ -180,10 +180,7 @@ function buildDistressScoreChip(key, config, scoreData) {
     if (theoryText) {
 
         const tooltip = document.createElement("div");
-        tooltip.className = "score-chip-tooltip";
         tooltip.textContent = theoryText;
-        
-        chip.appendChild(tooltip);
 
         tooltip.style.cssText = `
             display: none;
@@ -206,6 +203,16 @@ function buildDistressScoreChip(key, config, scoreData) {
         `;
 
         chip.appendChild(tooltip);
+
+        chip.addEventListener("mouseenter", () => {
+            tooltip.style.display = "block";
+        });
+
+        chip.addEventListener("mouseleave", () => {
+            tooltip.style.display = "none";
+        });
+
+    }
 
     return chip;
 
