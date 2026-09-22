@@ -4,8 +4,6 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-import json
-
 
 # ==================================================
 # Screener URLs
@@ -41,6 +39,7 @@ SECTION_IDS = {
 # Start Selenium
 # ==================================================
 
+
 def start_selenium():
     """
     Start Selenium only if it is not already running.
@@ -51,25 +50,20 @@ def start_selenium():
 
     global driver
 
-    # --------------------------------------------------
-    # Check whether Selenium is already running
-    # --------------------------------------------------
-
     if driver is not None:
 
         try:
             driver.current_url
 
-            print("Selenium already running. Reusing existing session.")
+            print(
+                "Selenium already running. "
+                "Reusing existing session."
+            )
 
             return driver
 
         except Exception:
             driver = None
-
-    # --------------------------------------------------
-    # Start Selenium
-    # --------------------------------------------------
 
     print("\nStarting Selenium...")
 
@@ -82,10 +76,6 @@ def start_selenium():
     driver = webdriver.Chrome(
         options=options
     )
-
-    # --------------------------------------------------
-    # Open Screener login
-    # --------------------------------------------------
 
     driver.get(
         SCREENER_LOGIN_URL
@@ -108,13 +98,232 @@ def start_selenium():
 
 
 # ==================================================
+# Read visible table
+# ==================================================
+
+
+def _read_table(table):
+    """
+    Read a Selenium table into the same raw matrix format
+    expected by the existing parser.
+    """
+
+    rows = table.find_elements(
+        By.TAG_NAME,
+        "tr"
+    )
+
+    data = []
+
+    for row in rows:
+
+        cells = row.find_elements(
+            By.CSS_SELECTOR,
+            "th, td"
+        )
+
+        row_data = [
+            cell.text.strip()
+            for cell in cells
+        ]
+
+        if any(row_data):
+            data.append(row_data)
+
+    return data
+
+
+# ==================================================
+# Find company ID and fetch schedule data
+# ==================================================
+
+
+def _fetch_schedule_data(section_id, parents, periods):
+    """
+    Fetch Screener's hidden schedule rows through the
+    authenticated Selenium browser session.
+
+    Screener returns an object shaped like:
+
+        {
+            "Trade receivables": {
+                "Mar 2025": "42,121",
+                "Mar 2026": "58,491"
+            }
+        }
+
+    The result is converted into raw table rows such as:
+
+        [
+            [
+                "Trade receivables",
+                "42,121",
+                "58,491"
+            ]
+        ]
+    """
+
+    global driver
+
+    schedule_result = driver.execute_async_script(
+        """
+        const sectionId = arguments[0];
+        const parents = arguments[1];
+        const done = arguments[arguments.length - 1];
+
+        function findCompanyId() {
+            const html = document.documentElement.innerHTML;
+
+            const patterns = [
+                /\\/company\\/actions\\/(\\d+)/,
+                /\\/api\\/company\\/(\\d+)/,
+                /company[_-]?id[^0-9]+(\\d+)/i
+            ];
+
+            for (const pattern of patterns) {
+                const match = html.match(pattern);
+
+                if (match) {
+                    return match[1];
+                }
+            }
+
+            const allElements = document.querySelectorAll("*");
+
+            for (const element of allElements) {
+                for (const attribute of element.attributes) {
+                    const match = attribute.value.match(
+                        /(?:company|screener)[_-]?id[^0-9]+(\\d+)/i
+                    );
+
+                    if (match) {
+                        return match[1];
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        async function loadSchedules() {
+            const companyId = findCompanyId();
+
+            if (!companyId) {
+                throw new Error(
+                    "Could not find Screener company ID."
+                );
+            }
+
+            const schedules = {};
+
+            for (const parent of parents) {
+                const params = new URLSearchParams({
+                    parent: parent,
+                    section: sectionId,
+                    consolidated: ""
+                });
+
+                const response = await fetch(
+                    `/api/company/${companyId}/schedules/?${params.toString()}`,
+                    {
+                        credentials: "same-origin",
+                        headers: {
+                            "X-Requested-With": "XMLHttpRequest"
+                        }
+                    }
+                );
+
+                if (!response.ok) {
+                    throw new Error(
+                        `Schedule request failed for ${parent}: ${response.status}`
+                    );
+                }
+
+                schedules[parent] = await response.json();
+            }
+
+            return schedules;
+        }
+
+        loadSchedules()
+            .then(schedules => {
+                done({
+                    ok: true,
+                    schedules: schedules
+                });
+            })
+            .catch(error => {
+                done({
+                    ok: false,
+                    error: error.message
+                });
+            });
+        """,
+        section_id,
+        parents
+    )
+
+    if not schedule_result:
+        raise ValueError(
+            "Screener schedule request returned no result."
+        )
+
+    if not schedule_result.get("ok"):
+        raise ValueError(
+            "Could not fetch Screener schedule rows: "
+            f"{schedule_result.get('error', 'Unknown error')}"
+        )
+
+    schedules = schedule_result.get(
+        "schedules",
+        {}
+    )
+
+    child_rows = []
+
+    for parent in parents:
+
+        payload = schedules.get(parent)
+
+        if not isinstance(payload, dict):
+            print(
+                f"No dictionary schedule returned for "
+                f"'{parent}'."
+            )
+
+            continue
+
+        for metric_name, values_by_period in payload.items():
+
+            if not isinstance(values_by_period, dict):
+                continue
+
+            row = [metric_name]
+
+            for period in periods:
+                row.append(
+                    values_by_period.get(
+                        period,
+                        ""
+                    )
+                )
+
+            child_rows.append(row)
+
+    return child_rows
+
+
+# ==================================================
 # Extract table from a section
 # ==================================================
 
+
 def extract_table(section_id):
     """
-    Extract a Screener statement table and fetch hidden schedule
-    rows through Screener's schedule API.
+    Extract a Screener statement table.
+
+    For the Profit & Loss and Balance Sheet sections,
+    fetch hidden child metrics through Screener's schedule API.
     """
 
     global driver
@@ -140,35 +349,18 @@ def extract_table(section_id):
 
     if not tables:
         raise ValueError(
-            f"No data table found inside section '{section_id}'."
+            f"No data table found inside section "
+            f"'{section_id}'."
         )
 
     table = tables[0]
 
-    rows = table.find_elements(
-        By.TAG_NAME,
-        "tr"
-    )
-
-    data = []
-
-    for row in rows:
-        cells = row.find_elements(
-            By.CSS_SELECTOR,
-            "th, td"
-        )
-
-        row_data = [
-            cell.text.strip()
-            for cell in cells
-        ]
-
-        if any(row_data):
-            data.append(row_data)
+    data = _read_table(table)
 
     if not data:
         raise ValueError(
-            f"No data found inside section '{section_id}'."
+            f"No data found inside section "
+            f"'{section_id}'."
         )
 
     schedule_parents = {
@@ -188,189 +380,21 @@ def extract_table(section_id):
     if not parents:
         return data
 
-    schedule_result = driver.execute_async_script(
-        """
-        const sectionId = arguments[0];
-        const parents = arguments[1];
-        const done = arguments[arguments.length - 1];
-
-        function findCompanyId() {
-            const html = document.documentElement.innerHTML;
-
-            const patterns = [
-                /\\/company\\/actions\\/(\\d+)/,
-                /\\/api\\/company\\/(\\d+)/,
-                /company[_-]?id[^0-9]+(\\d+)/i
-            ];
-
-            for (const pattern of patterns) {
-                const match = html.match(pattern);
-
-                if (match) {
-                    return match[1];
-                }
-            }
-
-            return null;
-        }
-
-        function parseRows(html) {
-            const wrapper = document.createElement("div");
-            wrapper.innerHTML = html;
-
-            const rows = wrapper.querySelectorAll("tr");
-            const result = [];
-
-            rows.forEach(row => {
-                const cells = row.querySelectorAll("th, td");
-
-                const rowData = Array.from(cells).map(
-                    cell => cell.textContent.trim()
-                );
-
-                if (rowData.some(value => value.length > 0)) {
-                    result.push(rowData);
-                }
-            });
-
-            return result;
-        }
-
-        function parsePayload(payload, periods) {
-            if (!payload) {
-                return [];
-            }
-
-            if (typeof payload === "string") {
-                return parseRows(payload);
-            }
-
-            if (typeof payload.html === "string") {
-                return parseRows(payload.html);
-            }
-
-            if (Array.isArray(payload.rows)) {
-                return payload.rows;
-            }
-
-            if (
-                typeof payload === "object"
-                && !Array.isArray(payload)
-            ) {
-                return Object.entries(payload).map(
-                    ([metric, valuesByPeriod]) => {
-                        const values = periods.map(
-                            period => valuesByPeriod[period] ?? ""
-                        );
-
-                        return [
-                            metric,
-                            ...values
-                        ];
-                    }
-                );
-            }
-
-            return [];
-        }
-
-        async function loadSchedules() {
-            const companyId = findCompanyId();
-            const mainTable = document.querySelector(
-                `#${sectionId} table.data-table`
-            );
-
-            if (!mainTable) {
-                throw new Error(
-                    `Could not find table for section ${sectionId}.`
-                );
-            }
-
-            const headerCells = mainTable.querySelectorAll(
-                "thead th, tr:first-child th, tr:first-child td"
-            );
-
-            const periods = Array.from(headerCells)
-                .map(cell => cell.textContent.trim())
-                .filter(value => value.length > 0)
-                .slice(1);
-
-            if (!companyId) {
-                throw new Error(
-                    "Could not find Screener company ID."
-                );
-            }
-
-            const result = [];
-
-            for (const parent of parents) {
-                const params = new URLSearchParams({
-                    parent: parent,
-                    section: sectionId,
-                    consolidated: ""
-                });
-
-                const response = await fetch(
-                    `/api/company/${companyId}/schedules/?${params.toString()}`,
-                    {
-                        credentials: "same-origin",
-                        headers: {
-                            "X-Requested-With": "XMLHttpRequest"
-                        }
-                    }
-                );
-
-                if (!response.ok) {
-                    throw new Error(
-                        `Schedule request failed for ${parent}: ${response.status}`
-                    );
-                }
-
-                const payload = await response.json();
-                const rows = parsePayload(
-                    payload,
-                    periods
-                );
-
-                result.push(...rows);
-            }
-
-            return result;
-        }
-
-        loadSchedules()
-            .then(rows => {
-                done({
-                    ok: true,
-                    rows: rows
-                });
-            })
-            .catch(error => {
-                done({
-                    ok: false,
-                    error: error.message
-                });
-            });
-        """,
-        section_id,
-        parents
-    )
-
-    if not schedule_result or not schedule_result.get("ok"):
-        error_message = (
-            schedule_result.get("error")
-            if schedule_result
-            else "Unknown schedule API error"
-        )
-
+    if len(data[0]) < 2:
         raise ValueError(
-            f"Could not load Screener schedule rows for "
-            f"section '{section_id}': {error_message}"
+            f"Could not identify periods in section "
+            f"'{section_id}'."
         )
 
-    child_rows = schedule_result.get(
-        "rows",
-        []
+    periods = [
+        str(period).strip()
+        for period in data[0][1:]
+    ]
+
+    child_rows = _fetch_schedule_data(
+        section_id,
+        parents,
+        periods
     )
 
     existing_metrics = {
@@ -379,18 +403,31 @@ def extract_table(section_id):
         if row and row[0].strip()
     }
 
+    imported_metrics = []
+
     for child_row in child_rows:
+
         if not child_row:
             continue
 
-        metric_name = child_row[0].strip().lower()
+        metric_name = child_row[0].strip()
 
         if not metric_name:
             continue
 
-        if metric_name not in existing_metrics:
-            data.append(child_row)
-            existing_metrics.add(metric_name)
+        metric_key = metric_name.lower()
+
+        if metric_key in existing_metrics:
+            continue
+
+        data.append(child_row)
+        existing_metrics.add(metric_key)
+        imported_metrics.append(metric_name)
+
+    print(
+        f"Schedule metrics imported for {section_id}: "
+        f"{imported_metrics}"
+    )
 
     return data
 
@@ -398,6 +435,7 @@ def extract_table(section_id):
 # ==================================================
 # Load Quarterly Insights
 # ==================================================
+
 
 def load_quarterly_insights():
     """
@@ -412,18 +450,16 @@ def load_quarterly_insights():
     )
 
     try:
-
         quarterly_button = driver.find_element(
             By.CSS_SELECTOR,
             'button[data-tab-id="quarterly-insights"]'
         )
 
-    except Exception as e:
-
+    except Exception as error:
         raise ValueError(
             "Quarterly Insights button "
             "was not found."
-        ) from e
+        ) from error
 
     driver.execute_script(
         "arguments[0].click();",
@@ -436,7 +472,6 @@ def load_quarterly_insights():
     )
 
     try:
-
         wait.until(
             EC.visibility_of_element_located(
                 (
@@ -447,12 +482,11 @@ def load_quarterly_insights():
             )
         )
 
-    except Exception as e:
-
+    except Exception as error:
         raise ValueError(
             "Quarterly Insights table "
             "did not load."
-        ) from e
+        ) from error
 
     print(
         "Quarterly Insights loaded."
@@ -463,12 +497,13 @@ def load_quarterly_insights():
 # Scrape Company
 # ==================================================
 
+
 def scrape_company(nse_code):
     """
     Scrape all required financial data
     for a company.
 
-    Selenium is NOT closed here.
+    Selenium is not closed here.
     """
 
     global driver
@@ -488,19 +523,11 @@ def scrape_company(nse_code):
         "=" * 80
     )
 
-    # ==================================================
-    # Open Company Page
-    # ==================================================
-
     url = SCREENER_COMPANY_URL.format(
         nse_code
     )
 
     driver.get(url)
-
-    # ==================================================
-    # Get Company Name
-    # ==================================================
 
     company_name = (
         driver.title
@@ -578,10 +605,6 @@ def scrape_company(nse_code):
         f"{len(cash_flow)} rows"
     )
 
-    # ==================================================
-    # Finished
-    # ==================================================
-
     print(
         "\n" + "=" * 80
     )
@@ -593,10 +616,6 @@ def scrape_company(nse_code):
     print(
         "=" * 80
     )
-
-    # ==================================================
-    # Return Data
-    # ==================================================
 
     return {
         "company_name": company_name,
@@ -610,6 +629,7 @@ def scrape_company(nse_code):
 # ==================================================
 # Close Selenium
 # ==================================================
+
 
 def close_selenium():
     """
