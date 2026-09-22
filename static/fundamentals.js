@@ -180,7 +180,10 @@ function buildDistressScoreChip(key, config, scoreData) {
     if (theoryText) {
 
         const tooltip = document.createElement("div");
+        tooltip.className = "score-chip-tooltip";
         tooltip.textContent = theoryText;
+        
+        chip.appendChild(tooltip);
 
         tooltip.style.cssText = `
             display: none;
@@ -203,16 +206,6 @@ function buildDistressScoreChip(key, config, scoreData) {
         `;
 
         chip.appendChild(tooltip);
-
-        chip.addEventListener("mouseenter", () => {
-            tooltip.style.display = "block";
-        });
-
-        chip.addEventListener("mouseleave", () => {
-            tooltip.style.display = "none";
-        });
-
-    }
 
     return chip;
 
