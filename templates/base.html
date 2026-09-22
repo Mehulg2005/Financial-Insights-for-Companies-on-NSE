@@ -105,6 +105,56 @@
             color: #F59E0B;
         }
 
+        /* Distress score cards - colored by severity instead
+           of printing an interpretation sentence */
+        .score-chip-positive {
+            border-color: rgba(16, 185, 129, 0.4) !important;
+            background-color: #0F291E !important;
+        }
+        .score-chip-positive .score-chip-value {
+            color: #10B981;
+        }
+
+        .score-chip-negative {
+            border-color: rgba(255, 87, 34, 0.4) !important;
+            background-color: #2C1714 !important;
+        }
+        .score-chip-negative .score-chip-value {
+            color: #FF5722;
+        }
+
+        .score-chip-mixed {
+            border-color: rgba(245, 158, 11, 0.4) !important;
+            background-color: #232018 !important;
+        }
+        .score-chip-mixed .score-chip-value {
+            color: #F59E0B;
+        }
+
+        .score-chip-tooltip {
+            display: none;
+            position: absolute;
+            z-index: 50;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            width: 280px;
+            background-color: #1C1C1F;
+            border: 1px solid #28282C;
+            border-radius: 10px;
+            padding: 12px 14px;
+            font-family: 'Manrope', sans-serif;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #8E8E93;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            white-space: pre-line;
+        }
+
+        .score-chip:hover .score-chip-tooltip {
+            display: block;
+        }
+
         /* Per-metric toggle chips beneath line charts */
         .chart-toggle {
             display: inline-flex;
