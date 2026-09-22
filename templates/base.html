@@ -41,9 +41,6 @@
     </script>
 
     <style>
-        /* Utility-class toggle states that are simpler as
-           real CSS than as repeated Tailwind class juggling
-           in JS - kept intentionally small. */
         .price-mode-button.active,
         .preview-table-toggle.active,
         .category-toggle-button.active {
@@ -51,21 +48,11 @@
             color: #ffffff;
         }
 
-        /* Title card: dark "Hero & Kinetic Glow" treatment
-           from DESIGN.md - a warm orange wash fading into
-           the base surface, plus a soft orange underglow
-           shadow. Not a solid bright fill (that would clash
-           with the white company name text). */
         .title-card {
             background: linear-gradient(135deg, rgba(255, 87, 34, 0.16) 0%, rgba(28, 20, 16, 0.6) 45%, #141416 100%);
             box-shadow: 0 8px 30px -6px rgba(255, 87, 34, 0.22);
         }
 
-        /* Summary cards brighten slightly on hover, per the
-           decided interaction. !important guards against
-           Tailwind's CDN-injected stylesheet potentially
-           loading after this block and winning a specificity
-           tie on the same background-color property. */
         .summary-card {
             transition: background-color 150ms ease;
         }
@@ -74,9 +61,6 @@
             background-color: #242429 !important;
         }
 
-        /* Verdict badges - colors match DESIGN.md's Ticker
-           Pills & Status Badges spec exactly (Active/Positive,
-           Neutral/Medium, High Risk/Urgent), not invented. */
         .verdict-badge {
             display: inline-flex;
             align-items: center;
@@ -103,52 +87,6 @@
         .verdict-badge.verdict-mixed {
             background-color: #232018;
             color: #F59E0B;
-        }
-
-        /* Distress score cards - colored by severity instead
-           of printing an interpretation sentence */
-        .score-chip-positive {
-            border-color: rgba(16, 185, 129, 0.4) !important;
-            background-color: #0F291E !important;
-        }
-        .score-chip-positive .score-chip-value {
-            color: #10B981;
-        }
-
-        .score-chip-negative {
-            border-color: rgba(255, 87, 34, 0.4) !important;
-            background-color: #2C1714 !important;
-        }
-        .score-chip-negative .score-chip-value {
-            color: #FF5722;
-        }
-
-        .score-chip-mixed {
-            border-color: rgba(245, 158, 11, 0.4) !important;
-            background-color: #232018 !important;
-        }
-        .score-chip-mixed .score-chip-value {
-            color: #F59E0B;
-        }
-
-        .score-chip-tooltip {
-            display: none;
-            position: absolute;
-            z-index: 50;
-            bottom: calc(100% + 8px);
-            left: 50%;
-            transform: translateX(-50%);
-            width: 280px;
-            background-color: #1C1C1F;
-            border: 1px solid #28282C;
-            border-radius: 10px;
-            padding: 12px 14px;
-            font-family: 'Manrope', sans-serif;
-            font-size: 12px;
-            line-height: 1.5;
-            color: #8E8E93;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-            white-space: pre-line;
         }
 
         .score-chip {
@@ -182,11 +120,50 @@
             color: #F59E0B !important;
         }
 
+        .score-chip-tooltip {
+            display: none;
+            position: absolute;
+            z-index: 50;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            width: 280px;
+            background-color: #1C1C1F;
+            border: 1px solid #28282C;
+            border-radius: 10px;
+            padding: 12px 14px;
+            font-family: 'Manrope', sans-serif;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #8E8E93;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            white-space: pre-line;
+        }
+
         .score-chip:hover > .score-chip-tooltip {
             display: block;
         }
 
-        /* Per-metric toggle chips beneath line charts */
+        .pillar-card {
+            background-color: #1C1C1F;
+            border-color: #28282C;
+        }
+
+        .pillar-card-positive {
+            background-color: #0F291E !important;
+            border-color: rgba(16, 185, 129, 0.4) !important;
+        }
+
+        .pillar-card-negative {
+            background-color: #2C1714 !important;
+            border-color: rgba(255, 87, 34, 0.4) !important;
+        }
+
+        .pillar-card-mixed {
+            background-color: #232018 !important;
+            border-color: rgba(245, 158, 11, 0.4) !important;
+        }
+
         .chart-toggle {
             display: inline-flex;
             align-items: center;
@@ -263,7 +240,6 @@
 
     </aside>
 
-
     <!-- MAIN COLUMN -->
     <div class="flex-1 flex flex-col min-w-0">
 
@@ -296,22 +272,24 @@
 
         <p id="errorMessage" class="px-6 pt-3 text-sm text-primary font-mono"></p>
 
-                {% set price_mode = price_tracker_mode | default("full") %}
+        {% set price_mode = price_tracker_mode | default("full") %}
 
         {% if nse_code %}
 
         {% if price_mode == "none" %}
-        <!-- MINIMAL TITLE CARD - company name only -->
+
         <section class="mx-6 mt-4 title-card rounded-2xl border border-border p-6">
             <h1 id="titleCardCompanyName" class="font-display text-2xl font-bold">{{ nse_code }}</h1>
         </section>
+
         {% else %}
-        <!-- FULL TITLE CARD -->
+
         <section class="mx-6 mt-4 title-card rounded-2xl border border-border p-6 flex items-center justify-between flex-wrap gap-4">
 
             <div>
                 <div class="flex items-center gap-3 mb-1.5 flex-wrap">
                     <h1 id="titleCardCompanyName" class="font-display text-2xl font-bold">{{ nse_code }}</h1>
+
                     <span class="font-mono text-xs px-3 py-1 rounded-full bg-surface-elevated border border-border text-text-medium">
                         NSE: {{ nse_code }}
                     </span>
@@ -329,19 +307,15 @@
             </div>
 
         </section>
+
         {% endif %}
 
-
-        <!-- PAGE-SPECIFIC CONTENT ABOVE THE PRICE CHART
-             (Overview's summary cards land here; other
-             pages can leave this block empty) -->
         <div class="mx-6 mt-4">
             {% block metrics %}{% endblock %}
         </div>
 
-
         {% if price_mode == "full" %}
-        <!-- PRICE TRACKER CHART -->
+
         <section class="mx-6 mt-4 p-5 bg-surface border border-border rounded-2xl">
 
             <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
@@ -350,13 +324,20 @@
 
                 <div class="flex items-center gap-4">
 
-                    <span id="priceTrackerLabel" class="font-mono text-[11px] uppercase tracking-widest text-text-muted">Live · updates every 1m</span>
+                    <span id="priceTrackerLabel" class="font-mono text-[11px] uppercase tracking-widest text-text-muted">
+                        Live · updates every 1m
+                    </span>
 
                     <div class="flex border border-border rounded-lg overflow-hidden">
                         <button type="button" id="priceModeLiveButton" data-mode="live"
-                            class="price-mode-button px-3 py-1 text-xs font-mono font-semibold text-text-medium">Live</button>
+                            class="price-mode-button px-3 py-1 text-xs font-mono font-semibold text-text-medium">
+                            Live
+                        </button>
+
                         <button type="button" id="priceModeRangeButton" data-mode="range"
-                            class="price-mode-button px-3 py-1 text-xs font-mono font-semibold text-text-medium border-l border-border">3M</button>
+                            class="price-mode-button px-3 py-1 text-xs font-mono font-semibold text-text-medium border-l border-border">
+                            3M
+                        </button>
                     </div>
 
                 </div>
@@ -368,6 +349,7 @@
             </div>
 
         </section>
+
         {% endif %}
         {% endif %}
 
@@ -379,12 +361,15 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
     <script>
         const CURRENT_NSE_CODE = {{ nse_code | tojson }};
         const ENABLE_PRICE_TRACKER = {{ (price_mode != "none") | tojson }};
     </script>
+
     <script src="/static/shared.js"></script>
     <script src="/static/base.js"></script>
+
     {% block scripts %}{% endblock %}
 
 </body>

@@ -275,8 +275,16 @@ async function loadDistressScores(nseCode) {
 
 function buildAnalysisCard(category, index) {
 
+    const verdict = String(category.verdict || "").toLowerCase();
+
     const card = document.createElement("div");
-    card.className = "bg-surface-raised border border-border rounded-2xl p-4";
+    card.className = [
+        "pillar-card",
+        "border",
+        "rounded-2xl",
+        "p-4",
+        verdict ? `pillar-card-${verdict}` : "",
+    ].filter(Boolean).join(" ");
 
     const eyebrow = document.createElement("div");
     eyebrow.className = "flex items-center justify-between mb-2";
