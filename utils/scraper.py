@@ -146,6 +146,22 @@ def extract_table(section_id):
 
     table = tables[0]
 
+    # Expand Screener rows such as Expenses and Other Assets
+    # so nested metrics are included in the extracted table.
+    expand_buttons = section.find_elements(
+        By.XPATH,
+        ".//button[contains(normalize-space(), '+')]"
+    )
+
+    for button in expand_buttons:
+        try:
+            driver.execute_script(
+                "arguments[0].click();",
+                button
+            )
+        except Exception:
+            continue
+
     rows = table.find_elements(
         By.TAG_NAME,
         "tr"

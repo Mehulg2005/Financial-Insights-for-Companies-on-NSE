@@ -43,8 +43,10 @@ from utils.features import _get
 # directly) - the original term is a US-specific 1968-base-
 # year macroeconomic deflator with no Indian-market equivalent.
 #
-# Beneish M-Score is NOT implemented - needs Accounts
-# Receivable and true Gross Margin, neither available.
+# Beneish M-Score uses Trade Receivables from the expanded
+# Balance Sheet and Material Cost % / Manufacturing Cost %
+# from the expanded Profit & Loss. SG&A is derived as
+# Expenses - Material Cost - Manufacturing Cost.
 #
 # TYPE HANDLING: DB values arrive as Decimal, Groww price
 # values as float. _to_float() normalizes both before any
@@ -161,6 +163,349 @@ def _market_value_of_equity(pnl_row, latest_price):
 
     return shares_outstanding * latest_price
 
+def _trade_receivables(bs_row):
+    return _to_float(_get(bs_row, [
+        "Trade Receivables",
+        "Trade Receivable",
+        "Accounts Receivable",
+    ]))
+
+
+def _percentage_fraction(value):
+    value = _to_float(value)
+
+    if value is None:
+        return None
+
+    return value / 100
+
+
+def _gross_margin_rate(pnl_row):
+    material_cost = _percentage_fraction(_get(
+        pnl_row,
+        ["Material Cost %", "Material Cost"],
+    ))
+
+    manufacturing_cost = _percentage_fraction(_get(
+        pnl_row,
+        ["Manufacturing Cost %", "Manufacturing Cost"],
+    ))
+
+    if material_cost is None or manufacturing_cost is None:
+        return None
+
+    return 1 - material_cost - manufacturing_cost
+
+
+def _sg_and_a_expenses(pnl_row):
+    expenses = _to_float(_get(pnl_row, ["Expenses"]))
+
+    material_cost_percent = _percentage_fraction(_get(
+        pnl_row,
+        ["Material Cost %", "Material Cost"],
+    ))
+
+    manufacturing_cost_percent = _percentage_fraction(_get(
+        pnl_row,
+        ["Manufacturing Cost %", "Manufacturing Cost"],
+    ))
+
+    sales = _to_float(_get(pnl_row, ["Sales", "Revenue"]))
+
+    if None in (
+        expenses,
+        material_cost_percent,
+        manufacturing_cost_percent,
+        sales,
+    ):
+        return None
+
+    cogs = sales * (
+        material_cost_percent + manufacturing_cost_percent
+    )
+
+    return expenses - cogs
+
+
+def _beneish_missing_inputs(
+    pnl_row,
+    prior_pnl_row,
+    bs_row,
+    prior_bs_row,
+    cf_row,
+):
+    required = {
+        "Trade Receivables": _trade_receivables(bs_row),
+        "Prior Trade Receivables": _trade_receivables(prior_bs_row),
+
+        "Sales": _to_float(_get(pnl_row, ["Sales", "Revenue"])),
+        "Prior Sales": _to_float(_get(prior_pnl_row, ["Sales", "Revenue"])),
+
+        "Gross Margin": _gross_margin_rate(pnl_row),
+        "Prior Gross Margin": _gross_margin_rate(prior_pnl_row),
+
+        "Total Assets": _total_assets(bs_row),
+        "Prior Total Assets": _total_assets(prior_bs_row),
+
+        "Fixed Assets": _to_float(_get(bs_row, ["Fixed Assets"])),
+        "Prior Fixed Assets": _to_float(
+            _get(prior_bs_row, ["Fixed Assets"])
+        ),
+
+        "Depreciation": _to_float(_get(pnl_row, ["Depreciation"])),
+        "Prior Depreciation": _to_float(
+            _get(prior_pnl_row, ["Depreciation"])
+        ),
+
+        "Net Profit": _to_float(
+            _get(pnl_row, ["Net Profit", "Net profit"])
+        ),
+        "Prior Net Profit": _to_float(
+            _get(prior_pnl_row, ["Net Profit", "Net profit"])
+        ),
+
+        "Cash from Operating Activity": _to_float(
+            _get(cf_row, ["Cash from Operating Activity"])
+        ),
+
+        "Expenses": _to_float(_get(pnl_row, ["Expenses"])),
+        "Prior Expenses": _to_float(
+            _get(prior_pnl_row, ["Expenses"])
+        ),
+
+        "Material Cost %": _get(
+            pnl_row,
+            ["Material Cost %", "Material Cost"],
+        ),
+        "Prior Material Cost %": _get(
+            prior_pnl_row,
+            ["Material Cost %", "Material Cost"],
+        ),
+
+        "Manufacturing Cost %": _get(
+            pnl_row,
+            ["Manufacturing Cost %", "Manufacturing Cost"],
+        ),
+        "Prior Manufacturing Cost %": _get(
+            prior_pnl_row,
+            ["Manufacturing Cost %", "Manufacturing Cost"],
+        ),
+
+        "Total Liabilities": _total_liabilities(bs_row),
+        "Prior Total Liabilities": _total_liabilities(prior_bs_row),
+    }
+
+    return [
+        name
+        for name, value in required.items()
+        if value is None
+    ]
+
+
+def compute_beneish_m(
+    pnl_row,
+    prior_pnl_row,
+    bs_row,
+    prior_bs_row,
+    cf_row,
+):
+    if None in (
+        pnl_row,
+        prior_pnl_row,
+        bs_row,
+        prior_bs_row,
+        cf_row,
+    ):
+        return {
+            "score": None,
+            "verdict": None,
+            "severity": None,
+            "note": (
+                "Needs two aligned fiscal-year periods "
+                "and cash-flow data."
+            ),
+        }
+
+    missing = _beneish_missing_inputs(
+        pnl_row,
+        prior_pnl_row,
+        bs_row,
+        prior_bs_row,
+        cf_row,
+    )
+
+    if missing:
+        return {
+            "score": None,
+            "verdict": None,
+            "severity": None,
+            "note": (
+                "Insufficient data to compute Beneish M-Score - "
+                f"missing: {', '.join(missing)}."
+            ),
+        }
+
+    sales = _to_float(_get(pnl_row, ["Sales", "Revenue"]))
+    prior_sales = _to_float(
+        _get(prior_pnl_row, ["Sales", "Revenue"])
+    )
+
+    receivables = _trade_receivables(bs_row)
+    prior_receivables = _trade_receivables(prior_bs_row)
+
+    gross_margin = _gross_margin_rate(pnl_row)
+    prior_gross_margin = _gross_margin_rate(prior_pnl_row)
+
+    total_assets = _total_assets(bs_row)
+    prior_total_assets = _total_assets(prior_bs_row)
+
+    fixed_assets = _to_float(_get(bs_row, ["Fixed Assets"]))
+    prior_fixed_assets = _to_float(
+        _get(prior_bs_row, ["Fixed Assets"])
+    )
+
+    depreciation = _to_float(
+        _get(pnl_row, ["Depreciation"])
+    )
+    prior_depreciation = _to_float(
+        _get(prior_pnl_row, ["Depreciation"])
+    )
+
+    net_profit = _to_float(
+        _get(pnl_row, ["Net Profit", "Net profit"])
+    )
+
+    cash_from_operating = _to_float(
+        _get(cf_row, ["Cash from Operating Activity"])
+    )
+
+    sg_and_a = _sg_and_a_expenses(pnl_row)
+    prior_sg_and_a = _sg_and_a_expenses(prior_pnl_row)
+
+    liabilities = _total_liabilities(bs_row)
+    prior_liabilities = _total_liabilities(prior_bs_row)
+
+    denominators = (
+        prior_sales,
+        sales,
+        prior_gross_margin,
+        gross_margin,
+        total_assets,
+        prior_total_assets,
+        fixed_assets + depreciation,
+        prior_fixed_assets + prior_depreciation,
+        sg_and_a,
+        prior_sg_and_a,
+        liabilities,
+        prior_liabilities,
+    )
+
+    if any(value in (None, 0) for value in denominators):
+        return {
+            "score": None,
+            "verdict": None,
+            "severity": None,
+            "note": (
+                "Could not compute Beneish M-Score because "
+                "one or more ratio denominators are zero."
+            ),
+        }
+
+    dsri = (
+        receivables / sales
+    ) / (
+        prior_receivables / prior_sales
+    )
+
+    gmi = prior_gross_margin / gross_margin
+
+    current_asset_quality = (
+        1 - (
+            (_current_assets(bs_row) + fixed_assets)
+            / total_assets
+        )
+    )
+
+    prior_asset_quality = (
+        1 - (
+            (_current_assets(prior_bs_row) + prior_fixed_assets)
+            / prior_total_assets
+        )
+    )
+
+    if prior_asset_quality == 0:
+        return {
+            "score": None,
+            "verdict": None,
+            "severity": None,
+            "note": (
+                "Could not compute Beneish M-Score because "
+                "the prior-period AQI denominator is zero."
+            ),
+        }
+
+    aqi = current_asset_quality / prior_asset_quality
+    sgi = sales / prior_sales
+
+    depi = (
+        prior_depreciation
+        / (prior_depreciation + prior_fixed_assets)
+    ) / (
+        depreciation
+        / (depreciation + fixed_assets)
+    )
+
+    sgai = (
+        sg_and_a / sales
+    ) / (
+        prior_sg_and_a / prior_sales
+    )
+
+    tata = (
+        net_profit - cash_from_operating
+    ) / total_assets
+
+    lvgi = (
+        liabilities / total_assets
+    ) / (
+        prior_liabilities / prior_total_assets
+    )
+
+    score = (
+        -4.84
+        + 0.92 * dsri
+        + 0.528 * gmi
+        + 0.404 * aqi
+        + 0.892 * sgi
+        + 0.115 * depi
+        - 0.172 * sgai
+        + 4.679 * tata
+        - 0.327 * lvgi
+    )
+
+    if score <= -2.22:
+        verdict = "High earnings quality"
+        severity = "positive"
+    else:
+        verdict = "High probability of accounting manipulation"
+        severity = "negative"
+
+    return {
+        "score": round(score, 3),
+        "verdict": verdict,
+        "severity": severity,
+        "note": None,
+        "ratios": {
+            "dsri": round(dsri, 3),
+            "gmi": round(gmi, 3),
+            "aqi": round(aqi, 3),
+            "sgi": round(sgi, 3),
+            "depi": round(depi, 3),
+            "sgai": round(sgai, 3),
+            "tata": round(tata, 3),
+            "lvgi": round(lvgi, 3),
+        },
+    }
 
 # ==================================================
 # A. Altman Z-Score
@@ -516,13 +861,6 @@ def build_distress_scores(profit_loss_records, balance_sheet_records, cash_flow_
     bs_row, prior_bs_row = _latest_two_periods(bs_pivoted)
     cf_row, _ = _latest_two_periods(cf_pivoted)
 
-    beneish_placeholder = {
-        "score": None,
-        "verdict": None,
-        "severity": None,
-        "note": "Not implemented - requires Accounts Receivable and Gross Margin data not currently available."
-    }
-
     if pnl_row is None or bs_row is None:
 
         empty_note = "Insufficient data to compute distress scores."
@@ -530,7 +868,12 @@ def build_distress_scores(profit_loss_records, balance_sheet_records, cash_flow_
         return {
             "altman_z": {"score": None, "zone": None, "severity": None, "note": empty_note},
             "piotroski_f": {"score": None, "max_score": 9, "severity": None, "note": empty_note},
-            "beneish_m": beneish_placeholder,
+            "beneish_m": {
+                "score": None,
+                "verdict": None,
+                "severity": None,
+                "note": empty_note,
+            },
             "ohlson_o": {"score": None, "probability": None, "severity": None, "note": empty_note},
             "springate_s": {"score": None, "verdict": None, "severity": None, "note": empty_note},
             "zmijewski_x": {"score": None, "verdict": None, "severity": None, "note": empty_note},
@@ -539,7 +882,13 @@ def build_distress_scores(profit_loss_records, balance_sheet_records, cash_flow_
     return {
         "altman_z": compute_altman_z(pnl_row, bs_row, latest_price),
         "piotroski_f": compute_piotroski_f(pnl_row, prior_pnl_row, bs_row, prior_bs_row, cf_row),
-        "beneish_m": beneish_placeholder,
+        "beneish_m": compute_beneish_m(
+            pnl_row,
+            prior_pnl_row,
+            bs_row,
+            prior_bs_row,
+            cf_row,
+        ),
         "ohlson_o": compute_ohlson_o(pnl_row, prior_pnl_row, bs_row, cf_row),
         "springate_s": compute_springate_s(pnl_row, bs_row),
         "zmijewski_x": compute_zmijewski_x(pnl_row, bs_row),

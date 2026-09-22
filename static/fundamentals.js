@@ -103,7 +103,10 @@ const DISTRESS_SCORE_DISPLAY = {
     },
     beneish_m: {
         label: "Beneish M",
-        format: () => "—",
+        format: data =>
+            data.score !== null && data.score !== undefined
+                ? `${data.score}`
+                : "—",
     },
     ohlson_o: {
         label: "Ohlson O",
@@ -126,7 +129,7 @@ const DISTRESS_SCORE_THEORY = {
 
     piotroski_f: "The Piotroski F-Score is a financial metric developed in 2000 by accounting professor Joseph Piotroski to evaluate the financial strength of value stocks. By combining nine binary criteria measuring profitability, leverage, and operating efficiency, it assesses whether a company's financial position is improving or worsening.\n\nA score of 8 to 9 places a company in the Strong Zone, indicating high quality and positive momentum. Scores of 0 to 3 indicate the Weak Zone, signaling poor financial health and high risk, while scores between 4 and 7 reflect an average baseline.",
 
-    beneish_m: "The Beneish M-Score is a mathematical model developed in 1999 by Professor Messod Beneish to predict the probability that a company has manipulated its earnings. By combining eight financial ratios tracking anomalies in revenue, asset depreciation, and leverage, it uncovers aggressive accounting practices.\n\nA score above -1.78 (e.g., -1.50) places a company in the Distress Zone, signaling a high likelihood of financial manipulation. Conversely, a score below -1.78 (e.g., -2.50) indicates the Safe Zone, meaning the company is unlikely to be an earnings manipulator.",
+    beneish_m: "The Beneish M-Score estimates the likelihood of earnings manipulation using receivables, gross margin, sales growth, depreciation, operating expenses, accruals, and leverage.\n\nA score at or below -2.22 indicates high earnings quality and a low probability of manipulation. A score above -2.22 indicates a high probability of accounting manipulation.",
 
     ohlson_o: "The Ohlson O-Score is a probabilistic model developed in 1980 by Dr. James Ohlson to estimate the likelihood of a company entering bankruptcy within one year. By combining nine financial factors - including size, total liabilities, net income, and working capital - it utilizes logistic regression to output a direct default probability.\n\nA score above 0.5 (corresponding to a high statistical probability) places a company in the Distress Zone, indicating a severe risk of default. A score below 0.5 represents the Safe Zone, where the company exhibits standard financial stability.",
 
