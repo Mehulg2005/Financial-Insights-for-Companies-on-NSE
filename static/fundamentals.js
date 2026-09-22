@@ -150,7 +150,7 @@ function buildDistressScoreChip(key, config, scoreData) {
     const colors = SEVERITY_COLORS[severity];
 
     const chip = document.createElement("div");
-    chip.className = "relative border rounded-xl p-3";
+    chip.className = "score-chip relative border rounded-xl p-3";
     chip.style.backgroundColor = colors ? colors.background : "#1C1C1F";
     chip.style.borderColor = colors ? colors.border : "#28282C";
 
