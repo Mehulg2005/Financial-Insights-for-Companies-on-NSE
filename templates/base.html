@@ -328,11 +328,14 @@
         {% if nse_code %}
 
         {% if price_mode == "none" %}
-
-        <section class="mx-6 mt-4 title-card rounded-2xl border border-border p-6">
-            <h1 id="titleCardCompanyName" class="font-display text-2xl font-bold">{{ nse_code }}</h1>
-        </section>
-
+        <div class="mx-6 mt-6 mb-2">
+            <h1
+            id="titleCardCompanyName"
+            class="font-display text-3xl md:text-4xl font-bold text-text-high"
+            >
+            {{ nse_code }}
+            </h1>
+        </div>
         {% else %}
 
         <section class="mx-6 mt-4 title-card rounded-2xl border border-border p-6 flex items-center justify-between flex-wrap gap-4">
