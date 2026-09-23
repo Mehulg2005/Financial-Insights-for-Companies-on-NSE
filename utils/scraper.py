@@ -46,6 +46,12 @@ SCREENER_CONCALL_SUMMARY_URL = (
     "https://www.screener.in/concalls/summary/{}/"
 )
 
+# How many concall summary pages to load back-to-back before
+# pausing. A short burst is fine; it's long unbroken bursts that
+# trigger Screener/Cloudflare's bot-detection blocks.
+CONCALL_BATCH_SIZE = 3
+CONCALL_BATCH_GAP = (2.0, 3.0)
+
 # ==================================================
 # Selenium driver
 # ==================================================
@@ -874,46 +880,51 @@ def fetch_latest_concall_summaries(nse_code, limit=6):
     summaries = []
     failed_periods = []
 
-    for index, document in enumerate(documents):
+    total_batches = -(-len(documents) // CONCALL_BATCH_SIZE)  # ceil div
 
-        document_no = document["document_no"]
-        period = document["period"]
+    for batch_index in range(total_batches):
 
-        # Small randomized pause between page loads. Hitting six
-        # pages back-to-back with no delay is what triggers
-        # Screener/Cloudflare's bot-detection blocks partway
-        # through the batch.
-        if index > 0:
-            time.sleep(random.uniform(2.5, 5.0))
+        batch_start = batch_index * CONCALL_BATCH_SIZE
+        batch = documents[batch_start:batch_start + CONCALL_BATCH_SIZE]
 
-        content = _load_concall_summary(document_no, wait)
+        for document in batch:
 
-        if content is None:
-            # First attempt was blocked (403) - back off longer
-            # and retry once before giving up on this document.
-            time.sleep(random.uniform(6.0, 10.0))
+            document_no = document["document_no"]
+            period = document["period"]
+
             content = _load_concall_summary(document_no, wait)
 
-        if content is None:
-            print(
-                f"Skipping concall summary {document_no} "
-                f"({period}): blocked after retry."
+            if content is None:
+                # First attempt was blocked (403) - back off and
+                # retry once before giving up on this document.
+                time.sleep(random.uniform(3.0, 5.0))
+                content = _load_concall_summary(document_no, wait)
+
+            if content is None:
+                print(
+                    f"Skipping concall summary {document_no} "
+                    f"({period}): blocked after retry."
+                )
+                failed_periods.append(period)
+                continue
+
+            summary_url = SCREENER_CONCALL_SUMMARY_URL.format(
+                document_no
             )
-            failed_periods.append(period)
-            continue
 
-        summary_url = SCREENER_CONCALL_SUMMARY_URL.format(
-            document_no
-        )
+            summaries.append(
+                {
+                    "id": document_no,
+                    "period": period,
+                    "url": summary_url,
+                    "content": content,
+                }
+            )
 
-        summaries.append(
-            {
-                "id": document_no,
-                "period": period,
-                "url": summary_url,
-                "content": content,
-            }
-        )
+        # Pause between batches (not after the last one) so the
+        # whole run doesn't look like one long unbroken burst.
+        if batch_index < total_batches - 1:
+            time.sleep(random.uniform(*CONCALL_BATCH_GAP))
 
     if failed_periods:
         print(
