@@ -33,20 +33,20 @@ function getMetricConfig(metric) {
 const FEATURE_CHART_GROUPS = {
 
     profitability: [
-        { canvas: "profitabilityChart1", toggles: "profitabilityToggles1", metrics: ["Effective Tax Rate", "Operating Margin"], dualAxis: false },
-        { canvas: "profitabilityChart2", toggles: "profitabilityToggles2", metrics: ["Sales", "Net Profit"], dualAxis: false },
+        { canvas: "profitabilityChart1", toggles: "profitabilityToggles1", metrics: ["Effective Tax Rate", "Operating Margin"], dualAxis: false, chartType: "bar" },
+        { canvas: "profitabilityChart2", toggles: "profitabilityToggles2", metrics: ["Sales", "Net Profit"], dualAxis: false, chartType: "comboBarLine" },
         { canvas: "profitabilityChart3", toggles: "profitabilityToggles3", metrics: ["Profit before Tax", "Profit After Tax"], dualAxis: false },
         { canvas: "profitabilityChart4", toggles: "profitabilityToggles4", metrics: ["EPS"], dualAxis: false },
     ],
 
     cash_flow_quality: [
         { canvas: "cashflowChart1", toggles: "cashflowToggles1", metrics: ["Cash Conversion (CFO / Net Profit)", "CFO Contribution"], dualAxis: false },
-        { canvas: "cashflowChart2", toggles: "cashflowToggles2", metrics: ["Cash from Operating Activity (CFO)"], dualAxis: false },
+        { canvas: "cashflowChart2", toggles: "cashflowToggles2", metrics: ["Cash from Operating Activity (CFO)"], dualAxis: false, chartType: "bar" },
     ],
 
     growth_trends: [
         { canvas: "growthTrendsChart1", toggles: "growthTrendsToggles1", metrics: ["Investment Migration", "Borrowings to Net Worth Ratio"], dualAxis: false },
-        { canvas: "growthTrendsChart2", toggles: "growthTrendsToggles2", metrics: ["Reserves", "Equity Capital"], dualAxis: false },
+        { canvas: "growthTrendsChart2", toggles: "growthTrendsToggles2", metrics: ["Reserves", "Equity Capital"], dualAxis: false, chartType: "stackedBar" },
         { canvas: "growthTrendsChart3", toggles: "growthTrendsToggles3", metrics: ["Interest Coverage Ratio"], dualAxis: false },
     ],
 
@@ -398,6 +398,7 @@ function renderMetricLineChart(group, records) {
         return;
     }
 
+    const chartType = group.chartType || "line";
     const usesRightAxis = group.dualAxis && presentMetrics.length > 1;
 
     const datasets = presentMetrics.map((metric, index) => {
@@ -408,9 +409,76 @@ function renderMetricLineChart(group, records) {
             ? (index === 0 ? "yLeft" : "yRight")
             : "yShared";
 
-        return {
+        const base = {
             label: metric,
             data: periods.map(period => valuesByMetric[metric][period] ?? null),
+            yAxisID: axisId,
+        };
+
+        // "Sales + Net Profit": clustered column for the first
+        // metric, line for the rest.
+        if (chartType === "comboBarLine") {
+
+            if (index === 0) {
+                return {
+                    ...base,
+                    type: "bar",
+                    backgroundColor: hexToRgba(color, 0.75),
+                    borderColor: color,
+                    borderWidth: 1,
+                    borderRadius: 3,
+                    order: 2,
+                };
+            }
+
+            return {
+                ...base,
+                type: "line",
+                borderColor: color,
+                backgroundColor: color,
+                pointRadius: 2,
+                pointHoverRadius: 4,
+                borderWidth: 2,
+                tension: 0.35,
+                spanGaps: true,
+                order: 1,
+            };
+
+        }
+
+        // Plain bar chart. A single metric (e.g. CFO) renders as
+        // one series; two metrics (e.g. Effective Tax Rate /
+        // Operating Margin) render as a clustered "double" bar,
+        // since Chart.js groups multiple un-stacked bar datasets
+        // side by side automatically.
+        if (chartType === "bar") {
+
+            return {
+                ...base,
+                backgroundColor: hexToRgba(color, 0.75),
+                borderColor: color,
+                borderWidth: 1,
+                borderRadius: 3,
+            };
+
+        }
+
+        // Stacked bar (e.g. Reserves + Equity Capital).
+        if (chartType === "stackedBar") {
+
+            return {
+                ...base,
+                backgroundColor: hexToRgba(color, 0.75),
+                borderColor: color,
+                borderWidth: 1,
+                stack: "combined",
+            };
+
+        }
+
+        // Default: line chart (unchanged behavior).
+        return {
+            ...base,
             borderColor: color,
             backgroundColor: color,
             pointRadius: 2,
@@ -418,7 +486,6 @@ function renderMetricLineChart(group, records) {
             borderWidth: 2,
             tension: 0.35,
             spanGaps: true,
-            yAxisID: axisId,
         };
 
     });
@@ -432,6 +499,7 @@ function renderMetricLineChart(group, records) {
         x: {
             grid: { color: "#28282C", drawTicks: false },
             ticks: tickFontConfig,
+            stacked: chartType === "stackedBar",
         },
     };
 
@@ -444,6 +512,7 @@ function renderMetricLineChart(group, records) {
             position: "left",
             grid: { color: "#28282C", drawTicks: false },
             ticks: { ...tickFontConfig, callback: value => leftFormatter(value) },
+            stacked: chartType === "stackedBar",
         };
 
         scales.yRight = {
@@ -451,6 +520,7 @@ function renderMetricLineChart(group, records) {
             display: usesRightAxis,
             grid: { drawOnChartArea: false },
             ticks: { ...tickFontConfig, callback: value => rightFormatter(value) },
+            stacked: chartType === "stackedBar",
         };
 
     } else {
@@ -461,13 +531,16 @@ function renderMetricLineChart(group, records) {
             position: "left",
             grid: { color: "#28282C", drawTicks: false },
             ticks: { ...tickFontConfig, callback: value => sharedFormatter(value) },
+            stacked: chartType === "stackedBar",
         };
 
     }
 
+    const baseChartType = chartType === "line" ? "line" : "bar";
+
     chartInstances[group.canvas] = new Chart(canvas, {
 
-        type: "line",
+        type: baseChartType,
 
         data: { labels: periods, datasets: datasets },
 
@@ -613,8 +686,100 @@ function renderOtherMetricsCharts(otherMetrics) {
         return;
     }
 
-    renderScatterChart("totalLiabilitiesVsAssetsChart", otherMetrics.total_liabilities_vs_total_assets, "Total Liabilities", "Total Assets");
+    renderStackedAreaChart("totalLiabilitiesVsAssetsChart", otherMetrics.total_liabilities_vs_total_assets, "Total Liabilities", "Total Assets");
     renderScatterChart("borrowingsVsAssetsChart", otherMetrics.borrowings_vs_total_assets, "Borrowings", "Total Assets");
+
+}
+
+
+function renderStackedAreaChart(canvasId, points, labelA, labelB) {
+
+    const canvas = document.getElementById(canvasId);
+
+    if (!canvas) {
+        return;
+    }
+
+    if (chartInstances[canvasId]) {
+        chartInstances[canvasId].destroy();
+        delete chartInstances[canvasId];
+    }
+
+    if (!points || points.length === 0) {
+        return;
+    }
+
+    const colorA = CHART_PALETTE[0];
+    const colorB = CHART_PALETTE[1] || "#FF5722";
+
+    chartInstances[canvasId] = new Chart(canvas, {
+
+        type: "line",
+
+        data: {
+            labels: points.map(point => point.period),
+            datasets: [
+                {
+                    label: labelA,
+                    data: points.map(point => point.x),
+                    borderColor: colorA,
+                    backgroundColor: hexToRgba(colorA, 0.35),
+                    fill: true,
+                    pointRadius: 2,
+                    pointHoverRadius: 4,
+                    borderWidth: 2,
+                    tension: 0.25,
+                },
+                {
+                    label: labelB,
+                    data: points.map(point => point.y),
+                    borderColor: colorB,
+                    backgroundColor: hexToRgba(colorB, 0.35),
+                    fill: true,
+                    pointRadius: 2,
+                    pointHoverRadius: 4,
+                    borderWidth: 2,
+                    tension: 0.25,
+                },
+            ],
+        },
+
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: "index", intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: "#1C1C1F",
+                    borderColor: "#28282C",
+                    borderWidth: 1,
+                    titleColor: "#8E8E93",
+                    bodyColor: "#FFFFFF",
+                    padding: 10,
+                    callbacks: {
+                        label: context => ` ${context.dataset.label}: ${formatNumber(context.parsed.y)}`,
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    grid: { color: "#28282C", drawTicks: false },
+                    ticks: { color: "#636366", font: { family: "JetBrains Mono", size: 11 } },
+                },
+                y: {
+                    stacked: true,
+                    grid: { color: "#28282C", drawTicks: false },
+                    ticks: {
+                        color: "#636366",
+                        font: { family: "JetBrains Mono", size: 11 },
+                        callback: value => formatNumber(value),
+                    },
+                },
+            },
+        },
+
+    });
 
 }
 
