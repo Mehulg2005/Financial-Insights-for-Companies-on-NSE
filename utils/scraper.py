@@ -1,4 +1,6 @@
 import os
+import random
+import time
 
 from dotenv import load_dotenv
 
@@ -159,8 +161,35 @@ def start_selenium():
         options.add_argument("--headless=new")
         options.add_argument("--window-size=1920,1080")
 
+    # Reduce obvious automation fingerprints (helps avoid
+    # bot-detection blocks when navigating several pages quickly).
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument(
+        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/128.0.0.0 Safari/537.36"
+    )
+    options.add_experimental_option(
+        "excludeSwitches",
+        ["enable-automation"]
+    )
+    options.add_experimental_option(
+        "useAutomationExtension",
+        False
+    )
+
     driver = webdriver.Chrome(
         options=options
+    )
+
+    driver.execute_cdp_cmd(
+        "Page.addScriptToEvaluateOnNewDocument",
+        {
+            "source": (
+                "Object.defineProperty(navigator, 'webdriver', "
+                "{get: () => undefined});"
+            )
+        }
     )
 
     driver.get(
@@ -751,6 +780,61 @@ def _concall_content():
     ).text.strip()
 
 
+def _load_concall_summary(document_no, wait):
+    """
+    Load a single concall summary page and return its content.
+
+    Returns None (rather than raising) if the page was blocked
+    (e.g. a 403 / bot-detection interstitial), so the caller can
+    back off, retry, or skip just this one document. A genuine
+    logged-out session (redirect to /login/) still raises, since
+    that affects every remaining document too.
+    """
+
+    global driver
+
+    summary_url = SCREENER_CONCALL_SUMMARY_URL.format(
+        document_no
+    )
+
+    driver.get(summary_url)
+
+    wait.until(
+        EC.presence_of_element_located(
+            (By.TAG_NAME, "body")
+        )
+    )
+
+    if "/login/" in driver.current_url:
+        raise ValueError(
+            "Screener login is required to access concall summaries."
+        )
+
+    title = (driver.title or "").lower()
+    body_preview = driver.find_element(
+        By.TAG_NAME,
+        "body"
+    ).text[:300].lower()
+
+    blocked_markers = (
+        "403",
+        "forbidden",
+        "access denied",
+        "just a moment",
+        "attention required",
+    )
+
+    if any(marker in title for marker in blocked_markers):
+        return None
+
+    if any(marker in body_preview for marker in blocked_markers):
+        return None
+
+    content = _concall_content()
+
+    return content or None
+
+
 def fetch_latest_concall_summaries(nse_code, limit=6):
     """
     Fetch the latest available Screener concall summaries.
@@ -788,33 +872,39 @@ def fetch_latest_concall_summaries(nse_code, limit=6):
     wait = WebDriverWait(driver, 20)
 
     summaries = []
+    failed_periods = []
 
-    for document in documents:
+    for index, document in enumerate(documents):
 
         document_no = document["document_no"]
         period = document["period"]
 
+        # Small randomized pause between page loads. Hitting six
+        # pages back-to-back with no delay is what triggers
+        # Screener/Cloudflare's bot-detection blocks partway
+        # through the batch.
+        if index > 0:
+            time.sleep(random.uniform(2.5, 5.0))
+
+        content = _load_concall_summary(document_no, wait)
+
+        if content is None:
+            # First attempt was blocked (403) - back off longer
+            # and retry once before giving up on this document.
+            time.sleep(random.uniform(6.0, 10.0))
+            content = _load_concall_summary(document_no, wait)
+
+        if content is None:
+            print(
+                f"Skipping concall summary {document_no} "
+                f"({period}): blocked after retry."
+            )
+            failed_periods.append(period)
+            continue
+
         summary_url = SCREENER_CONCALL_SUMMARY_URL.format(
             document_no
         )
-
-        driver.get(summary_url)
-
-        wait.until(
-            EC.presence_of_element_located(
-                (By.TAG_NAME, "body")
-            )
-        )
-
-        if "/login/" in driver.current_url:
-            raise ValueError(
-                "Screener login is required to access concall summaries."
-            )
-
-        content = _concall_content()
-
-        if not content:
-            continue
 
         summaries.append(
             {
@@ -823,6 +913,12 @@ def fetch_latest_concall_summaries(nse_code, limit=6):
                 "url": summary_url,
                 "content": content,
             }
+        )
+
+    if failed_periods:
+        print(
+            "Concall summaries could not be fetched for: "
+            f"{', '.join(failed_periods)}"
         )
 
     return summaries
