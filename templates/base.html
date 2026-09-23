@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Financial Insights{% endblock %}</title>
 
+    <script>
+        if (localStorage.getItem("sidebarCollapsed") === "true") {
+            document.documentElement.classList.add("sidebar-collapsed");
+        }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@600;700&family=Manrope:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -189,6 +195,23 @@
         .chart-toggle input[type="checkbox"]:checked {
             opacity: 1;
         }
+
+        #sidebar {
+            transition: width 150ms ease;
+        }
+
+        html.sidebar-collapsed #sidebar {
+            width: 4.5rem;
+        }
+
+        html.sidebar-collapsed .sidebar-label,
+        html.sidebar-collapsed .sidebar-subtitle {
+            display: none;
+        }
+
+        html.sidebar-collapsed #sidebarToggleIcon {
+            transform: rotate(180deg);
+        }
     </style>
 
     {% block extra_head %}{% endblock %}
@@ -197,43 +220,71 @@
 <body class="bg-canvas text-text-high font-body min-h-screen flex">
 
     <!-- SIDEBAR -->
-    <aside class="w-60 shrink-0 bg-surface border-r border-border flex flex-col">
+    <aside id="sidebar" class="w-60 shrink-0 bg-surface border-r border-border flex flex-col overflow-hidden">
 
-        <div class="px-5 py-6">
-            <div class="font-display font-bold text-lg">Financial Insights</div>
-            <div class="font-mono text-[10px] tracking-widest text-text-muted uppercase mt-1">SIHO Research Pvt. Ltd.</div>
+        <div class="px-5 py-6 flex items-center justify-between gap-2">
+
+            <div class="min-w-0">
+                <div class="font-display font-bold text-lg sidebar-label whitespace-nowrap">Financial Insights</div>
+                <div class="font-mono text-[10px] tracking-widest text-text-muted uppercase mt-1 sidebar-subtitle whitespace-nowrap">SIHO Research Pvt. Ltd.</div>
+            </div>
+
+            <button id="sidebarToggleButton" type="button" aria-label="Collapse sidebar"
+                class="p-1.5 rounded-lg text-text-medium hover:text-text-high hover:bg-surface-raised transition shrink-0">
+                <svg id="sidebarToggleIcon" class="w-4 h-4 transition-transform duration-150" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none">
+                    <path d="M12.5 4L7 10L12.5 16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+
         </div>
 
         {% set base = "/" + nse_code if nse_code else None %}
 
         <nav class="flex-1 px-3 space-y-1">
 
-            <a href="{{ base or '#' }}"
-               class="block px-3 py-2 rounded-lg text-sm font-medium border-l-2
+            <a href="{{ base or '#' }}" title="Overview"
+               class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium border-l-2 whitespace-nowrap
                       {% if active_page == 'overview' %}bg-surface-raised text-text-high border-primary{% else %}border-transparent text-text-medium hover:text-text-high{% endif %}
                       {% if not nse_code %}pointer-events-none opacity-40{% endif %}">
-                Overview
+                <svg class="w-4 h-4 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none">
+                    <rect x="2.5" y="2.5" width="6" height="6" rx="1.2" stroke="currentColor" stroke-width="1.4"/>
+                    <rect x="11.5" y="2.5" width="6" height="6" rx="1.2" stroke="currentColor" stroke-width="1.4"/>
+                    <rect x="2.5" y="11.5" width="6" height="6" rx="1.2" stroke="currentColor" stroke-width="1.4"/>
+                    <rect x="11.5" y="11.5" width="6" height="6" rx="1.2" stroke="currentColor" stroke-width="1.4"/>
+                </svg>
+                <span class="sidebar-label">Overview</span>
             </a>
 
-            <a href="{{ (base + '/fundamentals') if base else '#' }}"
-               class="block px-3 py-2 rounded-lg text-sm font-medium border-l-2
+            <a href="{{ (base + '/fundamentals') if base else '#' }}" title="Fundamentals"
+               class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium border-l-2 whitespace-nowrap
                       {% if active_page == 'fundamentals' %}bg-surface-raised text-text-high border-primary{% else %}border-transparent text-text-medium hover:text-text-high{% endif %}
                       {% if not nse_code %}pointer-events-none opacity-40{% endif %}">
-                Fundamentals
+                <svg class="w-4 h-4 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none">
+                    <path d="M3 16.5V13M8 16.5V9M13 16.5V5.5M18 16.5V11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                </svg>
+                <span class="sidebar-label">Fundamentals</span>
             </a>
 
-            <a href="{{ (base + '/financials') if base else '#' }}"
-               class="block px-3 py-2 rounded-lg text-sm font-medium border-l-2
+            <a href="{{ (base + '/financials') if base else '#' }}" title="Financials"
+               class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium border-l-2 whitespace-nowrap
                       {% if active_page == 'financials' %}bg-surface-raised text-text-high border-primary{% else %}border-transparent text-text-medium hover:text-text-high{% endif %}
                       {% if not nse_code %}pointer-events-none opacity-40{% endif %}">
-                Financials
+                <svg class="w-4 h-4 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none">
+                    <path d="M5 2.5H11L15 6.5V17.5H5V2.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+                    <path d="M7.5 10.5H12.5M7.5 13.5H12.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                </svg>
+                <span class="sidebar-label">Financials</span>
             </a>
 
-            <a href="{{ (base + '/market') if base else '#' }}"
-               class="block px-3 py-2 rounded-lg text-sm font-medium border-l-2
+            <a href="{{ (base + '/market') if base else '#' }}" title="Market Performance"
+               class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium border-l-2 whitespace-nowrap
                       {% if active_page == 'market' %}bg-surface-raised text-text-high border-primary{% else %}border-transparent text-text-medium hover:text-text-high{% endif %}
                       {% if not nse_code %}pointer-events-none opacity-40{% endif %}">
-                Market Performance
+                <svg class="w-4 h-4 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none">
+                    <path d="M2.5 12.5L7 7.5L10.5 10.5L17.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M12.5 3.5H17.5V8.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="sidebar-label">Market Performance</span>
             </a>
 
         </nav>
