@@ -1,10 +1,29 @@
+import os
+
+from dotenv import load_dotenv
+
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-import re
+from models.concall_documents import get_latest_documents
+
+
+# ==================================================
+# Environment / credentials
+# ==================================================
+
+load_dotenv()
+
+SCREENER_EMAIL = os.getenv("SCREENER_EMAIL", "")
+SCREENER_PASSWORD = os.getenv("SCREENER_PASSWORD", "")
+
+# Set SELENIUM_HEADLESS=false in .env to see the browser window.
+SELENIUM_HEADLESS = (
+    os.getenv("SELENIUM_HEADLESS", "true").strip().lower() != "false"
+)
 
 
 # ==================================================
@@ -19,6 +38,10 @@ SCREENER_COMPANY_URL = (
 
 SCREENER_COMPANY_URL = (
     "https://www.screener.in/company/{}/consolidated/"
+)
+
+SCREENER_CONCALL_SUMMARY_URL = (
+    "https://www.screener.in/concalls/summary/{}/"
 )
 
 # ==================================================
@@ -45,12 +68,65 @@ SECTION_IDS = {
 # ==================================================
 
 
+def _login_to_screener():
+    """
+    Fill in and submit Screener's login form using the
+    credentials configured in .env, then wait until the
+    browser has navigated away from the login page.
+
+    No manual keyboard interaction is required.
+    """
+
+    if not SCREENER_EMAIL or not SCREENER_PASSWORD:
+        raise ValueError(
+            "SCREENER_EMAIL and SCREENER_PASSWORD must be set "
+            "in .env for automated login."
+        )
+
+    wait = WebDriverWait(driver, 20)
+
+    email_field = wait.until(
+        EC.presence_of_element_located(
+            (By.CSS_SELECTOR, "input[name='username']")
+        )
+    )
+
+    password_field = driver.find_element(
+        By.CSS_SELECTOR,
+        "input[name='password']"
+    )
+
+    email_field.clear()
+    email_field.send_keys(SCREENER_EMAIL)
+
+    password_field.clear()
+    password_field.send_keys(SCREENER_PASSWORD)
+
+    submit_button = driver.find_element(
+        By.CSS_SELECTOR,
+        "button[type='submit']"
+    )
+
+    driver.execute_script(
+        "arguments[0].click();",
+        submit_button
+    )
+
+    # Screener redirects away from /login/ once authenticated.
+    wait.until(
+        lambda current_driver: "/login/" not in current_driver.current_url
+    )
+
+
 def start_selenium():
     """
     Start Selenium only if it is not already running.
 
     Once started, Selenium remains alive until
     close_selenium() is explicitly called.
+
+    Login is automated using SCREENER_EMAIL / SCREENER_PASSWORD
+    from .env - no manual browser interaction is required.
     """
 
     global driver
@@ -78,6 +154,11 @@ def start_selenium():
         "--start-maximized"
     )
 
+    if SELENIUM_HEADLESS:
+
+        options.add_argument("--headless=new")
+        options.add_argument("--window-size=1920,1080")
+
     driver = webdriver.Chrome(
         options=options
     )
@@ -86,10 +167,7 @@ def start_selenium():
         SCREENER_LOGIN_URL
     )
 
-    input(
-        "Log in to Screener, "
-        "then press Enter here..."
-    )
+    _login_to_screener()
 
     print(
         "Screener login completed."
@@ -634,47 +712,6 @@ def scrape_company(nse_code):
 # Concall summaries
 # ==================================================
 
-
-def _concall_period(element):
-    """
-    Extract the month/year associated with a concall document element.
-    """
-
-    try:
-        return driver.execute_script(
-            """
-            const element = arguments[0];
-            let node = element;
-
-            for (let i = 0; i < 8 && node; i += 1) {
-                const text = (
-                    node.innerText ||
-                    node.textContent ||
-                    ""
-                ).trim();
-
-                if (text) {
-                    const match = text.match(
-                        /\\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s+\\d{4}\\b/
-                    );
-
-                    if (match) {
-                        return match[0];
-                    }
-                }
-
-                node = node.parentElement;
-            }
-
-            return "";
-            """,
-            element,
-        )
-
-    except Exception:
-        return ""
-
-
 def _concall_content():
     """
     Extract the authenticated concall-summary page content.
@@ -718,6 +755,11 @@ def fetch_latest_concall_summaries(nse_code, limit=6):
     """
     Fetch the latest available Screener concall summaries.
 
+    Document numbers are read from the manually-populated
+    concall_documents table (see models/concall_documents.py)
+    instead of being scraped off Screener's company page, since
+    that page's markup for locating summary links is unreliable.
+
     Data is returned in memory only.
     Nothing is stored in PostgreSQL.
     """
@@ -732,11 +774,31 @@ def fetch_latest_concall_summaries(nse_code, limit=6):
 
     nse_code = nse_code.upper().strip()
 
-    company_url = SCREENER_COMPANY_URL.format(nse_code)
+    documents = get_latest_documents(
+        nse_code,
+        limit=limit
+    )
+
+    if not documents:
+        raise ValueError(
+            f"No concall documents found for {nse_code} in "
+            "concall_documents. Add rows for this company first."
+        )
+
     wait = WebDriverWait(driver, 20)
 
-    try:
-        driver.get(company_url)
+    summaries = []
+
+    for document in documents:
+
+        document_no = document["document_no"]
+        period = document["period"]
+
+        summary_url = SCREENER_CONCALL_SUMMARY_URL.format(
+            document_no
+        )
+
+        driver.get(summary_url)
 
         wait.until(
             EC.presence_of_element_located(
@@ -749,116 +811,21 @@ def fetch_latest_concall_summaries(nse_code, limit=6):
                 "Screener login is required to access concall summaries."
             )
 
-        # Give Screener's Documents section time to finish loading.
-        wait.until(
-            lambda current_driver: current_driver.execute_script(
-                """
-                return document.querySelectorAll(
-                    'a[href*="/concalls/summary/"], \
-                     [data-href*="/concalls/summary/"], \
-                     [data-url*="/concalls/summary/"]'
-                ).length > 0;
-                """
-            )
+        content = _concall_content()
+
+        if not content:
+            continue
+
+        summaries.append(
+            {
+                "id": document_no,
+                "period": period,
+                "url": summary_url,
+                "content": content,
+            }
         )
 
-        link_metadata = []
-        seen_ids = set()
-
-        # Screener normally uses href, but also inspect data-href and data-url.
-        elements = driver.find_elements(
-            By.CSS_SELECTOR,
-            """
-            a[href*="/concalls/summary/"],
-            [data-href*="/concalls/summary/"],
-            [data-url*="/concalls/summary/"]
-            """,
-        )
-
-        for element in elements:
-            href = (
-                element.get_attribute("href")
-                or element.get_attribute("data-href")
-                or element.get_attribute("data-url")
-                or ""
-            )
-
-            match = re.search(
-                r"/concalls/summary/(\d+)",
-                href,
-            )
-
-            if not match:
-                continue
-
-            summary_id = match.group(1)
-
-            if summary_id in seen_ids:
-                continue
-
-            seen_ids.add(summary_id)
-
-            link_metadata.append(
-                {
-                    "id": summary_id,
-                    "period": _concall_period(element) or "Concall",
-                }
-            )
-
-            # Screener displays the documents newest first.
-            if len(link_metadata) >= limit:
-                break
-
-        if not link_metadata:
-            raise ValueError(
-                "No concall summary links were found on Screener. "
-                "Confirm that the logged-in account can access Documents "
-                "and that the company has available AI summaries."
-            )
-
-        summaries = []
-
-        for metadata in link_metadata:
-            summary_id = metadata["id"]
-
-            summary_url = SCREENER_CONCALL_SUMMARY_URL.format(
-                summary_id
-            )
-
-            driver.get(summary_url)
-
-            wait.until(
-                EC.presence_of_element_located(
-                    (By.TAG_NAME, "body")
-                )
-            )
-
-            if "/login/" in driver.current_url:
-                raise ValueError(
-                    "Screener login is required to access concall summaries."
-                )
-
-            content = _concall_content()
-
-            if not content:
-                continue
-
-            summaries.append(
-                {
-                    "id": summary_id,
-                    "period": metadata["period"],
-                    "url": summary_url,
-                    "content": content,
-                }
-            )
-
-        return summaries
-
-    finally:
-        try:
-            driver.get(company_url)
-        except Exception:
-            pass
+    return summaries
 
 # ==================================================
 # Close Selenium
