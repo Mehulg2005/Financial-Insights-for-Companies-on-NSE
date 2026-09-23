@@ -2,6 +2,20 @@ const searchButton = document.getElementById("searchButton");
 const updateButton = document.getElementById("updateButton");
 const nseInput = document.getElementById("nseInput");
 const errorMessage = document.getElementById("errorMessage");
+const sidebarToggleButton = document.getElementById("sidebarToggleButton");
+
+
+if (sidebarToggleButton) {
+
+    sidebarToggleButton.addEventListener("click", () => {
+
+        const collapsed = document.documentElement.classList.toggle("sidebar-collapsed");
+
+        localStorage.setItem("sidebarCollapsed", collapsed ? "true" : "false");
+
+    });
+
+}
 
 
 function goToCompany(rawNseCode) {
