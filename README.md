@@ -1,60 +1,65 @@
-# Financial Insights for Companies on NSE — V3
+# Financial Insights for Companies on NSE — V4
 
-A FastAPI application for retrieving, storing, and analyzing financial data for NSE-listed companies, sourced from Screener via Selenium and stored in PostgreSQL.
+A FastAPI application for retrieving, storing, and analyzing financial data for NSE-listed companies, sourced from Screener (via Selenium) and Groww (for price charts), stored in PostgreSQL.
 
-V3 builds on V2's Features engine by turning raw ratios into visual trend charts, and adds a rule-based **Fundamental Analysis** engine that reads those trends and produces an explainable POSITIVE / NEGATIVE / MIXED verdict, per category and overall — the first half of a larger "Is this company good to trade?" pipeline (the second half, a Technical Analysis aspect based on price/volume patterns, is planned for a later version).
+V4 is a full redesign of the web interface, plus two new pillars on top of V3's Fundamental Analysis engine: a **Distress Scores** module (Altman Z-Score, Beneish M-Score, Piotroski F-Score, Ohlson O-Score, Springate, Zmijewski) and a manually-curated **Concall Summaries** feature. It also lays the first groundwork for the planned Technical Analysis aspect via a new Market tab.
+
+> **Internal tool, not for external/customer distribution.** Screener login is now fully automated using credentials configured in `.env` (see [Security](#security)) — this tradeoff is intentional for internal use only and should not be shipped to end users as-is.
 
 > V1 (the original single-table Insights scraper) is preserved as the [`v1.0` release](../../releases/tag/v1.0).
 > V2 (structured statements + computed ratios) is preserved as the [`v2.0` release](../../releases/tag/v2.0).
+> V3 (Features tab redesign + Fundamental Analysis engine) is preserved as the [`v3.0` release](../../releases/tag/v3.0).
 
 ---
 
-## What's new in V3
+## What's new in V4
 
-- **Restructured Features tab** — reorganized into four sections that better separate what's being measured:
-  - **Profitability**: Effective Tax Rate, Sales, Net Profit, Operating Margin, Profit before Tax, Profit After Tax, EPS
-  - **Cash Flow Quality**: Cash from Operating Activity (CFO), CFO Contribution, Cash Conversion
-  - **Growth Trends**: Reserves, Equity Capital, Investment Migration, Borrowings-to-Net-Worth Ratio, Interest Coverage Ratio
-  - **Other Metrics**: Total Liabilities vs Total Assets and Borrowings vs Total Assets, plotted as scatter charts with a visible trend direction (fading/growing points plus an arrow toward the latest period)
-- **Chart.js-powered charts** — the Features tab now renders interactive line and scatter charts (via Chart.js, loaded from CDN) instead of static tables, with click-to-toggle legend chips per metric and dual/shared y-axes chosen per chart so differently-scaled metrics don't flatten each other
-- **Fundamental Analysis engine** (`utils/trend_analyzer.py`) — a deterministic, rule-based layer on top of the Features data that:
-  - Classifies each key metric's trend over a trailing 7-period window as improving / declining / mixed (tolerant of up to 2 "blip" periods, with a majority-direction safeguard)
-  - Rolls trends up into five category verdicts — Profitability, Growth, Cash Flow, Leverage, Capital Allocation — each POSITIVE / NEGATIVE / MIXED with plain-language, explainable bullet reasons. Profitability includes an EPS dilution check (flags PAT rising without EPS keeping pace); Leverage includes Interest Coverage Ratio alongside Borrowings-to-Net-Worth
-  - Rolls the five category verdicts up into one overall Fundamental Aspect verdict
-  - All thresholds and rollup rules live in one documented config block at the top of the file, intended to be reviewed and tuned by the team rather than treated as fixed
-- **New endpoint** — `GET /company/{nse_code}/fundamental-analysis`
-- **Makefile** — `make install` (installs dependencies from `requirements.txt`) and `make run` (activates the venv and starts the server) for a faster local dev loop
+- **Redesigned web interface** — the old single-page `index.html` / `app.js` / `style.css` frontend is gone, replaced by a multi-page, Tailwind-styled interface: a shared `templates/base.html` shell (sidebar nav, top bar, shared title header) extended by per-tab templates (`overview.html`, `fundamentals.html`, `financials.html`, `market.html`), each with its own JS file, plus `static/shared.js` for cross-page helpers (chart palette, formatting, sync-timestamp rendering)
+- **Collapsible sidebar** — persisted per-browser via `localStorage`, collapses to an icon-only rail
+- **Fundamentals tab redesign** — the old Features tab's charts were restyled per-metric (clustered column + line for Sales/Net Profit, plain bar for CFO, stacked bar for Reserves/Equity Capital, stacked area for Total Liabilities/Total Assets, clustered bar for Effective Tax Rate/Operating Margin) and the "Fundamental Analysis" verdict card now renders as a plain heading instead of a bordered card
+- **Distress Scores module** (`utils/distress_scores.py`, `routes/distress.py`) — computes six classic financial-distress/fraud-risk models (Altman Z-Score, Beneish M-Score, Piotroski F-Score, Ohlson O-Score, Springate, Zmijewski) from stored Profit & Loss, Balance Sheet, and Cash Flow data, with severity-colored cards and hover tooltips explaining each score's methodology
+- **Concall Summaries** (`models/concall_documents.py`, `routes/concalls.py`) — rather than scraping Screener's company page for concall document links (unreliable markup), summaries are looked up from a manually-populated `concall_documents` table (`nse_code`, `period`, `document_no`) and fetched from `https://www.screener.in/concalls/summary/{document_no}/` directly. Fetched summaries are cached back into the same table (`summary` column) so repeat requests for the same document don't hit Screener again
+- **Automated, headless Screener login** — Selenium now logs into Screener itself using `SCREENER_EMAIL` / `SCREENER_PASSWORD` from `.env`, with no manual browser interaction, and runs headless by default (`SELENIUM_HEADLESS=true`). Requests are paced in small batches with randomized delays and automatic retry-then-skip on a single blocked document, to avoid Cloudflare/bot-detection blocks. See [Security](#security) for the tradeoffs this introduces
+- **Market tab (early stage)** — `templates/market.html` / `static/market.js`, the first piece of the planned Technical Analysis aspect
+- **Price chart data source** — `services/price_service.py` / `routes/price.py` fetch price charts from Groww rather than Screener
 
 ---
 
 ## Architecture
 
 ```
-                ┌──────────────────┐
-                │   Web Interface  │
-                │   index.html     │
-                └────────┬─────────┘
-                         │
-                         ▼
-                ┌──────────────────┐
-                │     FastAPI      │
-                │     Routes       │
-                └────────┬─────────┘
-                         │
-          ┌──────────────┼───────────────┐
-          │              │               │
-          ▼              ▼               ▼
-   ┌──────────────┐ ┌──────────┐ ┌───────────────────┐
-   │ PostgreSQL   │ │ Selenium │ │ Fundamental        │
-   │   Database   │ │ Scraper  │ │ Analysis Engine     │
-   └──────────────┘ └────┬─────┘ │ (trend_analyzer.py) │
-                          │       └───────────┬─────────┘
-                          ▼                   │
-                 ┌─────────────────┐          │
-                 │    Screener     │◄─────────┘
-                 └─────────────────┘   reads stored
-                                        statements from DB
+                ┌─────────────────────────────────────────┐
+                │              Web Interface              │
+                │  base.html + overview/fundamentals/     │
+                │  financials/market.html (Tailwind)      │
+                └────────────────────┬────────────────────┘
+                                     │
+                                     ▼
+                ┌───────────────────────────┐
+                │          FastAPI          │
+                │           Routes          │
+                └───────────────────┬───────┘
+                                    │
+        ┌─────────────┬──────────────┼───────────────┬───────────────┐
+        │             │              │               │               │
+        ▼             ▼              ▼               ▼               ▼
+ ┌────────────┐ ┌──────────┐ ┌────────────────┐ ┌─────────────┐ ┌─────────────┐
+ │ PostgreSQL │ │ Selenium │ │ Fundamental    │ │  Distress   │ │    Groww    │
+ │  Database  │ │ Scraper  │ │ Analysis       │ │  Scores     │ │ (price data)│
+ └─────┬──────┘ └────┬─────┘ │ (trend_        │ │ (distress_  │ └─────────────┘
+       │             │       │  analyzer.py)  │ │  scores.py) │
+       │              ▼      └───────┬────────┘ └───────┬─────┘
+       │      ┌──────────────┐       │                  │
+       │      │   Screener   │◄──────┴──────────────────┘
+       │      │ (statements, │   reads stored statements from DB
+       │      │  concalls)   │
+       │      └──────────────┘
+       │
+       └── concall_documents (nse_code, period, document_no, summary)
+           manually populated; document_no drives direct concall
+           summary fetches instead of scraping company-page links
 ```
+
 ## Project structure
 
 ```
@@ -64,34 +69,49 @@ V3 builds on V2's Features engine by turning raw ratios into visual trend charts
 │   ├── profit_loss.py     # GET /company/{nse_code}/profit-loss
 │   ├── balance_sheet.py   # GET /company/{nse_code}/balance-sheet
 │   ├── cash_flow.py       # GET /company/{nse_code}/cash-flow
-│   └── features.py        # GET /company/{nse_code}/features
-│                           # GET /company/{nse_code}/fundamental-analysis
+│   ├── features.py        # GET /company/{nse_code}/features
+│   │                       # GET /company/{nse_code}/fundamental-analysis
+│   ├── distress.py        # GET /company/{nse_code}/distress-scores
+│   ├── price.py           # GET /company/{nse_code}/price-chart
+│   └── concalls.py        # GET /company/{nse_code}/concall-summaries
 │
 ├── services/
-│   └── company_service.py # DB-first, scrape-if-missing orchestration
+│   ├── company_service.py # DB-first, scrape-if-missing orchestration
+│   └── price_service.py   # Groww price chart fetching (range + intraday)
 │
 ├── models/
 │   ├── company.py
 │   ├── qres_insights.py
 │   ├── profit_loss.py
 │   ├── balance_sheet.py
-│   └── cash_flow.py
+│   ├── cash_flow.py
+│   └── concall_documents.py   # manually-populated document_no lookup + summary cache
 │
 ├── utils/
-│   ├── scraper.py         # Selenium session management + scraping
-│   ├── database.py        # PostgreSQL connection & queries
-│   ├── parser.py          # Parses scraped Screener data
-│   ├── pivot.py           # Pivots period-metric rows into per-period dicts
-│   ├── features.py        # Computes profitability/cash-flow/growth-trend/other metrics
-│   ├── trend_analyzer.py  # Rule-based Fundamental Analysis engine
+│   ├── scraper.py           # Selenium session mgmt, automated login, scraping, concall fetch
+│   ├── database.py          # PostgreSQL connection & queries
+│   ├── parser.py            # Parses scraped Screener data
+│   ├── pivot.py             # Pivots period-metric rows into per-period dicts
+│   ├── features.py          # Computes profitability/cash-flow/growth-trend/other metrics
+│   ├── trend_analyzer.py    # Rule-based Fundamental Analysis engine
+│   ├── distress_scores.py   # Altman Z / Beneish M / Piotroski / Ohlson / Springate / Zmijewski
 │   └── company_data.py
 │
 ├── templates/
-│   └── index.html
+│   ├── base.html            # Shared shell: sidebar, top bar, title header
+│   ├── landing.html
+│   ├── overview.html
+│   ├── fundamentals.html
+│   ├── financials.html
+│   └── market.html
 │
 ├── static/
-│   ├── app.js              # Chart.js-based rendering for Features + Fundamental Analysis
-│   └── style.css
+│   ├── base.js               # Sidebar/search/nav shell behavior
+│   ├── shared.js              # Cross-page helpers (chart palette, formatting, sync label)
+│   ├── overview.js
+│   ├── fundamentals.js        # Charts + distress score cards + trend verdicts
+│   ├── financials.js
+│   └── market.js
 │
 ├── test_parser.py
 ├── api.py
@@ -115,6 +135,9 @@ V3 builds on V2's Features engine by turning raw ratios into visual trend charts
 | GET | `/company/{nse_code}/cash-flow` | Cash Flow statement, pivoted by period. |
 | GET | `/company/{nse_code}/features` | Computed metrics: Profitability, Cash Flow Quality, Growth Trends, Other Metrics. |
 | GET | `/company/{nse_code}/fundamental-analysis` | Rule-based trend analysis: per-category and overall POSITIVE / NEGATIVE / MIXED verdicts with explainable reasons. |
+| GET | `/company/{nse_code}/distress-scores` | Altman Z, Beneish M, Piotroski F, Ohlson O, Springate, and Zmijewski scores, computed from stored statements (+ latest price from Groww for Altman Z's X4 term). |
+| GET | `/company/{nse_code}/price-chart?mode=range\|live` | Price chart data from Groww — `range` (historical) or `live` (intraday polling). |
+| GET | `/company/{nse_code}/concall-summaries` | Latest 6 concall summaries, resolved via the manually-populated `concall_documents` table; cached in DB after first fetch. |
 
 Interactive docs available at `/docs` (Swagger UI) once the app is running.
 
@@ -126,7 +149,7 @@ Interactive docs available at `/docs` (Swagger UI) once the app is running.
 - **Web Scraping**: Selenium, Google Chrome / ChromeDriver
 - **Data Processing**: Pandas
 - **Database**: PostgreSQL, Psycopg
-- **Frontend**: HTML, JavaScript, CSS, Chart.js (CDN)
+- **Frontend**: Jinja2 templates, Tailwind (CDN), vanilla JavaScript, Chart.js (CDN)
 
 ---
 
@@ -155,21 +178,39 @@ Option 2:
    make install
 ```
 
-
-4. Configure environment variables — copy `.env.example` to `.env` and fill in your PostgreSQL credentials:
+4. Configure environment variables — copy `.env.example` to `.env` and fill in your PostgreSQL credentials and Screener credentials:
 ```
    DB_HOST=localhost
    DB_PORT=5432
    DB_NAME=your_database_name
    DB_USER=your_database_user
    DB_PASSWORD=your_database_password
+
+   SCREENER_EMAIL=your_screener_email
+   SCREENER_PASSWORD=your_screener_password
+
+   SELENIUM_HEADLESS=true
 ```
-   `.env` is gitignored and should never be committed.
-   
-5. Create the PostgreSQL database (the application initializes required tables on startup):
+   `.env` is gitignored and should never be committed. See [Security](#security) before filling in Screener credentials.
+
+5. Create the PostgreSQL database and required tables. The application does **not** auto-create its schema on startup — run these once:
 ```sql
    CREATE DATABASE screener_db;
+
+   -- company, qres_insights, profit_loss, balance_sheet, cash_flow:
+   -- see models/*.py for the exact columns each expects.
+
+   CREATE TABLE concall_documents (
+       id SERIAL PRIMARY KEY,
+       nse_code TEXT NOT NULL,
+       period TEXT NOT NULL,
+       document_no TEXT NOT NULL,
+       summary TEXT,
+       last_updated TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       UNIQUE (nse_code, period)
+   );
 ```
+   `concall_documents` rows are added manually — find a company's concall document number on Screener and insert `(nse_code, period, document_no)`; `summary` fills in automatically on first fetch.
 
 ## Running the application
 
@@ -195,29 +236,33 @@ Both targets activate the venv internally before running their command, so no se
 1. A user searches by NSE code (e.g. `RELIANCE`) via the web interface or API.
 2. FastAPI checks PostgreSQL first.
 3. If the company exists, stored data is returned directly.
-4. If not, a Selenium session (started lazily on first need) scrapes the company's Screener page.
+4. If not, a Selenium session (started lazily, logging into Screener automatically via `.env` credentials) scrapes the company's Screener page.
 5. Scraped data is parsed (`utils/parser.py`) and stored in PostgreSQL.
 6. `utils/pivot.py` reshapes statement data by period for display; `utils/features.py` computes derived metrics on demand.
 7. `utils/trend_analyzer.py` reads those same statements, classifies each key metric's trend over the trailing window, and rolls the results up into explainable category and overall Fundamental Analysis verdicts.
-8. The `/update` endpoint re-scrapes on request, reusing the same Selenium session for efficiency.
+8. `utils/distress_scores.py` reads the same statements (plus latest price from Groww) to compute the six distress/fraud-risk scores.
+9. For concalls: `models/concall_documents.py` is checked for cached document numbers/summaries for a company; anything not yet cached is fetched from Screener (in small paced batches, with retry-then-skip on a blocked document) and written back to the same table.
+10. The `/update` endpoint re-scrapes on request, reusing the same Selenium session for efficiency.
 
 ---
 
 ## Security
 
 - Database credentials are stored using environment variables, never hardcoded.
-- `.env` is excluded from Git via `.gitignore`.
-- No Screener login credentials are stored in source code — authentication (when required) is done manually through the Selenium-controlled browser.
+- **Screener login is automated for this internal tool.** `SCREENER_EMAIL` / `SCREENER_PASSWORD` are read from `.env` at startup and used to log Selenium into Screener with no manual step. This is a deliberate tradeoff for internal convenience — **do not** reuse this pattern for a tool that will be distributed outside the team, and treat the Screener account used here as a shared credential, not a personal one.
+- `.env` is excluded from Git via `.gitignore`, and `.env.example` contains placeholder values only — never commit real values into either file or into any script.
+- No secrets have been committed to this repository's history (checked before every version tag); if that ever changes, the affected credential must be rotated immediately, since removing a file from a later commit does **not** remove it from earlier commits still reachable in history.
 - `.venv` and Python cache files are excluded from version control.
-- `.env.example` contains placeholder values only.
+- `SELENIUM_HEADLESS=true` by default; set to `false` only for local debugging, since it makes the automated-login browser window visible.
 
 ---
 
 ## Future Improvements
 
-- **Technical Analysis aspect** — price/volume pattern analysis, to be combined with the existing Fundamental Analysis aspect via AND logic into one final "good to trade?" verdict
-- **LLM-generated narrative summaries** — a locally-run model (via llamafile) to turn the structured Fundamental Analysis output into readable prose, without taking over the underlying decision logic
-- Validation of Fundamental Analysis thresholds across a larger set of companies
+- **Technical Analysis aspect** — the Market tab is the first step; price/volume pattern analysis is still to come, to be combined with the existing Fundamental Analysis aspect via AND logic into one final "good to trade?" verdict
+- **LLM-generated narrative summaries** — a locally-run model (via llamafile) to turn the structured Fundamental Analysis output, Distress Scores, and Concall Summaries into readable prose, without taking over the underlying decision logic
+- Validation of Fundamental Analysis and Distress Score thresholds across a larger set of companies
+- A lighter-weight way to populate `concall_documents` (currently manual) — e.g. a small admin form instead of direct SQL inserts
 - Automated scheduled data updates
 - Additional financial data sources
 - More advanced filtering and cross-company comparison
