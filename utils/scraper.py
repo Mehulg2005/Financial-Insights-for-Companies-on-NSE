@@ -10,7 +10,10 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-from models.concall_documents import get_latest_documents
+from models.concall_documents import (
+    get_latest_documents,
+    update_summary,
+)
 
 
 # ==================================================
@@ -850,17 +853,16 @@ def fetch_latest_concall_summaries(nse_code, limit=6):
     instead of being scraped off Screener's company page, since
     that page's markup for locating summary links is unreliable.
 
-    Data is returned in memory only.
-    Nothing is stored in PostgreSQL.
+    Each document's summary is cached in that same table:
+    - If a summary is already stored for a document, it is
+      used as-is and Screener is not hit for it at all.
+    - Otherwise it is scraped from Screener, then saved back
+      to concall_documents via update_summary() so future
+      requests for this document reuse it.
     """
 
     if limit <= 0:
         return []
-
-    global driver
-
-    if driver is None:
-        start_selenium()
 
     nse_code = nse_code.upper().strip()
 
@@ -875,62 +877,101 @@ def fetch_latest_concall_summaries(nse_code, limit=6):
             "concall_documents. Add rows for this company first."
         )
 
-    wait = WebDriverWait(driver, 20)
-
-    summaries = []
+    summaries_by_period = {}
     failed_periods = []
 
-    total_batches = -(-len(documents) // CONCALL_BATCH_SIZE)  # ceil div
+    # --------------------------------------------------
+    # Serve cached summaries straight from the database.
+    # --------------------------------------------------
 
-    for batch_index in range(total_batches):
+    to_scrape = []
 
-        batch_start = batch_index * CONCALL_BATCH_SIZE
-        batch = documents[batch_start:batch_start + CONCALL_BATCH_SIZE]
+    for document in documents:
 
-        for document in batch:
+        if document.get("summary"):
 
-            document_no = document["document_no"]
-            period = document["period"]
+            summaries_by_period[document["period"]] = {
+                "id": document["document_no"],
+                "period": document["period"],
+                "url": SCREENER_CONCALL_SUMMARY_URL.format(
+                    document["document_no"]
+                ),
+                "content": document["summary"],
+            }
 
-            content = _load_concall_summary(document_no, wait)
+        else:
+            to_scrape.append(document)
 
-            if content is None:
-                # First attempt was blocked (403) - back off and
-                # retry once before giving up on this document.
-                time.sleep(random.uniform(3.0, 5.0))
+    # --------------------------------------------------
+    # Scrape whatever wasn't already cached.
+    # --------------------------------------------------
+
+    if to_scrape:
+
+        global driver
+
+        if driver is None:
+            start_selenium()
+
+        wait = WebDriverWait(driver, 20)
+
+        total_batches = -(-len(to_scrape) // CONCALL_BATCH_SIZE)  # ceil div
+
+        for batch_index in range(total_batches):
+
+            batch_start = batch_index * CONCALL_BATCH_SIZE
+            batch = to_scrape[batch_start:batch_start + CONCALL_BATCH_SIZE]
+
+            for document in batch:
+
+                document_no = document["document_no"]
+                period = document["period"]
+
                 content = _load_concall_summary(document_no, wait)
 
-            if content is None:
-                print(
-                    f"Skipping concall summary {document_no} "
-                    f"({period}): blocked after retry."
-                )
-                failed_periods.append(period)
-                continue
+                if content is None:
+                    # First attempt was blocked (403) - back off and
+                    # retry once before giving up on this document.
+                    time.sleep(random.uniform(3.0, 5.0))
+                    content = _load_concall_summary(document_no, wait)
 
-            summary_url = SCREENER_CONCALL_SUMMARY_URL.format(
-                document_no
-            )
+                if content is None:
+                    print(
+                        f"Skipping concall summary {document_no} "
+                        f"({period}): blocked after retry."
+                    )
+                    failed_periods.append(period)
+                    continue
 
-            summaries.append(
-                {
+                update_summary(nse_code, period, content)
+
+                summaries_by_period[period] = {
                     "id": document_no,
                     "period": period,
-                    "url": summary_url,
+                    "url": SCREENER_CONCALL_SUMMARY_URL.format(
+                        document_no
+                    ),
                     "content": content,
                 }
-            )
 
-        # Pause between batches (not after the last one) so the
-        # whole run doesn't look like one long unbroken burst.
-        if batch_index < total_batches - 1:
-            time.sleep(random.uniform(*CONCALL_BATCH_GAP))
+            # Pause between batches (not after the last one) so the
+            # whole run doesn't look like one long unbroken burst.
+            if batch_index < total_batches - 1:
+                time.sleep(random.uniform(*CONCALL_BATCH_GAP))
 
     if failed_periods:
         print(
             "Concall summaries could not be fetched for: "
             f"{', '.join(failed_periods)}"
         )
+
+    # Preserve the newest-first order that get_latest_documents()
+    # already returned.
+    summaries = [
+        summaries_by_period[document["period"]]
+        for document in documents
+        if document["period"] in summaries_by_period
+    ]
 
     return summaries
 
